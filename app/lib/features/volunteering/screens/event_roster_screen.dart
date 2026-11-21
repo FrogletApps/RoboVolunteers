@@ -58,7 +58,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'To protect this volunteer\'s privacy, your message will be forwarded through the RoboRef relay:',
+                'To protect this volunteer\'s privacy, your message will be forwarded through the RoboVolunteers relay:',
                 style: TextStyle(fontSize: 12, color: Colors.grey[700]),
               ),
               const SizedBox(height: 6),

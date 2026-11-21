@@ -189,7 +189,7 @@ async function handleRequestOtp(
       throw new HttpError(
         403,
         "invalid_invite_code",
-        "Invalid invitation code. Access to RoboRef Volunteer Hub is invite-only."
+        "Invalid invitation code. Access to RoboVolunteers is invite-only."
       );
     }
   }
@@ -476,7 +476,7 @@ async function handleClaimInvite(
     throw new HttpError(
       403,
       "invalid_invite_code",
-      "Invalid invitation code. Access to RoboRef Volunteer Hub is invite-only."
+      "Invalid invitation code. Access to RoboVolunteers is invite-only."
     );
   }
 

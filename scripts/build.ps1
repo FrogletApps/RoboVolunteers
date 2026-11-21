@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds RoboRef Volunteer Hub Flutter app and/or Auth OTP Cloudflare Worker with automatic date-based version (YYYY.M.D) and Git commit count build number.
+  Builds RoboVolunteers Flutter app and/or Auth OTP Cloudflare Worker with automatic date-based version (YYYY.M.D) and Git commit count build number.
 .PARAMETER Target
   The build target (e.g. web, worker, server, apk, appbundle, windows, ipa, all). Default: web.
 .PARAMETER ExtraArgs
@@ -31,7 +31,7 @@ try {
 }
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Building RoboRef Volunteer Hub ($Target)" -ForegroundColor Cyan
+Write-Host " Building RoboVolunteers ($Target)" -ForegroundColor Cyan
 Write-Host " Version Name: $versionName" -ForegroundColor Yellow
 Write-Host " Build Number: $buildNumber" -ForegroundColor Yellow
 Write-Host " Full Version: $versionName+$buildNumber" -ForegroundColor Yellow

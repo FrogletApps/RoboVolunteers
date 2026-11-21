@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds the RoboRef Volunteer Hub Flutter Web app and/or Auth OTP Worker, then deploys to Cloudflare Workers with Static Assets.
+  Builds the RoboVolunteers Flutter Web app and/or Auth OTP Worker, then deploys to Cloudflare Workers with Static Assets.
 .PARAMETER SkipBuild
   Skips all builds and deploys directly using existing artifacts.
 .PARAMETER SkipWebBuild

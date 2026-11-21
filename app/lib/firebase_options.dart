@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Firebase configuration options for RoboRef Volunteer Hub.
+/// Firebase configuration options for RoboVolunteers.
 ///
 /// Configured for the `volunteer-wrangler` Firebase project by default, while
 /// still allowing `--dart-define=FIREBASE_API_KEY=...`, `FIREBASE_PROJECT_ID=...`,
@@ -39,7 +39,7 @@ class DefaultFirebaseOptions {
   );
   static const String _iosBundleId = String.fromEnvironment(
     'FIREBASE_IOS_BUNDLE_ID',
-    defaultValue: 'app.roboref.roborefVolunteerHub',
+    defaultValue: 'link.robovolunteers',
   );
 
   /// Returns true when Firebase project credentials have been configured.

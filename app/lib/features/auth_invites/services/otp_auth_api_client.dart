@@ -49,7 +49,7 @@ class AuthApiException implements Exception {
   String toString() => message;
 }
 
-/// Client for the RoboRef Cloudflare Auth OTP Worker (`/api/auth/request-otp`
+/// Client for the RoboVolunteers Cloudflare Auth OTP Worker (`/api/auth/request-otp`
 /// and `/api/auth/verify-otp`).
 class OtpAuthApiClient {
   static const String defaultBaseUrl = String.fromEnvironment(

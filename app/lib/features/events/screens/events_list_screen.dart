@@ -169,7 +169,7 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('RoboRef Volunteer Hub'),
+        title: const Text('RoboVolunteers'),
         actions: [
           IconButton(
             key: const Key('profile_button'),
@@ -191,7 +191,7 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
                 builder: (ctx) => AlertDialog(
                   title: const Text('Log Out?'),
                   content: const Text(
-                    'Are you sure you want to log out of RoboRef Volunteer Hub?',
+                    'Are you sure you want to log out of RoboVolunteers?',
                   ),
                   actions: [
                     TextButton(

@@ -1,6 +1,6 @@
 {
-    "name": "RoboRef Volunteer Hub",
-    "short_name": "RoboRef",
+    "name": "RoboVolunteers",
+    "short_name": "RoboVolunteers",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

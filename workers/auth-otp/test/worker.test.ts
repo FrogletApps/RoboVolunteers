@@ -67,7 +67,7 @@ async function generateTestServiceAccountJson(): Promise<string> {
   });
 }
 
-describe("RoboRef Auth OTP Cloudflare Worker", () => {
+describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
   let currentTimeMs: number;
   let kv: MemoryKv;
   let sentEmails: OutboundEmailPayload[];
@@ -152,7 +152,7 @@ describe("RoboRef Auth OTP Cloudflare Worker", () => {
       TURNSTILE_SECRET_KEY: "turnstile-secret",
       REQUIRE_TURNSTILE: "true",
       SENDER_EMAIL: "noreply@roboref.app",
-      SENDER_NAME: "RoboRef Volunteer Hub",
+      SENDER_NAME: "RoboVolunteers",
       MAX_DAILY_EMAILS_PER_USER: "12",
       MAX_HOURLY_EMAILS_PER_IP: "100",
       MAX_MINUTE_EMAILS_PER_IP: "20",
@@ -315,7 +315,7 @@ describe("RoboRef Auth OTP Cloudflare Worker", () => {
     assert.equal(sentEmails[0].to, "jane.ref@example.co.uk");
     assert.deepEqual(sentEmails[0].from, {
       email: "noreply@roboref.app",
-      name: "RoboRef Volunteer Hub",
+      name: "RoboVolunteers",
     });
     const otp = extractOtpFromLastEmail();
 

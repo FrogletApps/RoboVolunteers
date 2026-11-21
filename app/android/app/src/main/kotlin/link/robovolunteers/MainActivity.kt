@@ -1,4 +1,4 @@
-package app.roboref.roboref_volunteer_hub
+package link.robovolunteers
 
 import io.flutter.embedding.android.FlutterActivity
 

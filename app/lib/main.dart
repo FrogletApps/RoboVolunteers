@@ -27,15 +27,15 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
-      child: RoboRefVolunteerHubApp(firebaseReady: firebaseInitialized),
+      child: RoboVolunteersApp(firebaseReady: firebaseInitialized),
     ),
   );
 }
 
-class RoboRefVolunteerHubApp extends ConsumerWidget {
+class RoboVolunteersApp extends ConsumerWidget {
   final bool firebaseReady;
 
-  const RoboRefVolunteerHubApp({
+  const RoboVolunteersApp({
     super.key,
     this.firebaseReady = true,
   });
@@ -43,7 +43,7 @@ class RoboRefVolunteerHubApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'RoboRef Volunteer Hub',
+      title: 'RoboVolunteers',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

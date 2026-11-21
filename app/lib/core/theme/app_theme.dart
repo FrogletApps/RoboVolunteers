@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  /// Primary RoboRef brand green (#00731F)
+  /// Primary RoboVolunteers brand green (#00731F)
   static const Color brandGreen = Color(0xFF00731F);
 
   /// Deep forest green for borders and high-contrast accents (#004613)

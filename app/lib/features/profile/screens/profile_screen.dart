@@ -94,7 +94,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Log Out?'),
-                  content: const Text('Are you sure you want to log out of RoboRef Volunteer Hub?'),
+                  content: const Text('Are you sure you want to log out of RoboVolunteers?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),

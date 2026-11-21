@@ -257,7 +257,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 20),
 
                   const Text(
-                    'RoboRef Volunteer Hub',
+                    'RoboVolunteers',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,

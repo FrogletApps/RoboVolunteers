@@ -1,5 +1,5 @@
 {
-  // Cloudflare Workers Static Assets configuration for RoboRef Volunteer Hub (Flutter Web SPA).
+  // Cloudflare Workers Static Assets configuration for RoboVolunteers (Flutter Web SPA).
   // Static requests + SPA fallback are served directly from Cloudflare's edge with free unlimited bandwidth.
   "name": "roboref-volunteer-hub",
   "compatibility_date": "2026-10-31",

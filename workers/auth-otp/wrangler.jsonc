@@ -1,5 +1,5 @@
 {
-  // Cloudflare Worker configuration for RoboRef Volunteer Hub 6-digit Email OTP + Invite Gate
+  // Cloudflare Worker configuration for RoboVolunteers 6-digit Email OTP + Invite Gate
   "name": "roboref-volunteer-auth-otp",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-31",
@@ -16,7 +16,7 @@
   ],
   "vars": {
     "SENDER_EMAIL": "noreply@roboref.app",
-    "SENDER_NAME": "RoboRef Volunteer Hub",
+    "SENDER_NAME": "RoboVolunteers",
     "MAX_DAILY_EMAILS_PER_USER": "12",
     "MAX_HOURLY_EMAILS_PER_IP": "20",
     "MAX_MINUTE_EMAILS_PER_IP": "5",

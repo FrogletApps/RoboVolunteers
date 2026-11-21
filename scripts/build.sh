@@ -11,7 +11,7 @@ VERSION_NAME="$(date +'%Y.%-m.%-d')"
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo "1")"
 
 echo "========================================"
-echo " Building RoboRef Volunteer Hub ($TARGET)"
+echo " Building RoboVolunteers ($TARGET)"
 echo " Version Name: $VERSION_NAME"
 echo " Build Number: $BUILD_NUMBER"
 echo " Full Version: $VERSION_NAME+$BUILD_NUMBER"

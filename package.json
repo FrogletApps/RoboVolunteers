@@ -1,8 +1,8 @@
 {
-  "name": "roboref-volunteer-hub",
+  "name": "robovolunteers",
   "version": "1.0.0",
   "private": true,
-  "description": "RoboRef Volunteer Hub - VEX Robotics volunteer management and event coordination",
+  "description": "RoboVolunteers - VEX Robotics volunteer management and event coordination",
   "scripts": {
     "dev": "wrangler dev --config wrangler.jsonc",
     "dev:worker": "npm --prefix workers/auth-otp run dev",

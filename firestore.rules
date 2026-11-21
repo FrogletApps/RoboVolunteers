@@ -1,12 +1,12 @@
 rules_version = '2';
 
 // ===============================================================
-// Assumed Data Model — RoboRef Volunteer Hub (v1)
+// Assumed Data Model — RoboVolunteers (v1)
 // ===============================================================
 //
 // Authentication & Authority Model:
 //   - All authorized users in v1 authenticate via a Firebase Custom Token
-//     minted by the RoboRef Cloudflare Worker after invite-code + 6-digit
+//     minted by the RoboVolunteers Cloudflare Worker after invite-code + 6-digit
 //     Email OTP verification.
 //   - Every authorized user carries custom claim:
 //       request.auth != null && request.auth.token.inviteVerified == true

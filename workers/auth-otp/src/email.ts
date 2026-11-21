@@ -7,11 +7,11 @@ export async function sendOtpEmail(
   ttlMinutes: number
 ): Promise<void> {
   const senderEmail = env.SENDER_EMAIL?.trim() || "noreply@roboref.app";
-  const senderName = env.SENDER_NAME?.trim() || "RoboRef Volunteer Hub";
+  const senderName = env.SENDER_NAME?.trim() || "RoboVolunteers";
 
-  const subject = `${otpCode} is your RoboRef Volunteer Hub sign-in code`;
+  const subject = `${otpCode} is your RoboVolunteers sign-in code`;
   const text = [
-    "RoboRef Volunteer Hub — Sign-In Verification",
+    "RoboVolunteers — Sign-In Verification",
     "",
     `Your 6-digit verification code is: ${otpCode}`,
     "",
@@ -24,7 +24,7 @@ export async function sendOtpEmail(
   const html = `<!DOCTYPE html>
 <html lang="en">
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; max-width: 480px; margin: 0 auto; padding: 24px;">
-  <h2 style="color: #15803d; margin-bottom: 8px;">RoboRef Volunteer Hub</h2>
+  <h2 style="color: #15803d; margin-bottom: 8px;">RoboVolunteers</h2>
   <p style="font-size: 14px; color: #475569; margin-top: 0;">UK VEX Robotics Competition Volunteer Management</p>
   <p style="font-size: 15px;">Enter the following 6-digit verification code in the app to sign in:</p>
   <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">

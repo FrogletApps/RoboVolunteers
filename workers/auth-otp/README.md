@@ -1,4 +1,4 @@
-# RoboRef Volunteer Hub — Auth OTP Cloudflare Worker
+# RoboVolunteers — Auth OTP Cloudflare Worker
 
 Standalone Cloudflare Worker (`workers/auth-otp/`) providing:
 - **Server-side Invite Code Validation** against encrypted `INVITE_CODES` Cloudflare Secret (constant-time comparison).

@@ -3,10 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:roboref_volunteer_hub/features/auth_invites/services/auth_service.dart';
-import 'package:roboref_volunteer_hub/features/auth_invites/services/otp_auth_api_client.dart';
-import 'package:roboref_volunteer_hub/features/auth_invites/state/auth_provider.dart';
-import 'package:roboref_volunteer_hub/features/profile/models/volunteer_model.dart';
+import 'package:robovolunteers/features/auth_invites/services/auth_service.dart';
+import 'package:robovolunteers/features/auth_invites/services/otp_auth_api_client.dart';
+import 'package:robovolunteers/features/auth_invites/state/auth_provider.dart';
+import 'package:robovolunteers/features/profile/models/volunteer_model.dart';
 
 void main() {
   group('Passwordless 6-Digit Email OTP & Invite Gate Auth Tests', () {
@@ -31,7 +31,7 @@ void main() {
                   'ok': false,
                   'error': 'invalid_invite_code',
                   'message':
-                      'Invalid invitation code. Access to RoboRef Volunteer Hub is invite-only.',
+                      'Invalid invitation code. Access to RoboVolunteers is invite-only.',
                 }),
                 403,
               );
@@ -112,7 +112,7 @@ void main() {
                 'ok': false,
                 'error': 'invalid_invite_code',
                 'message':
-                    'Invalid invitation code. Access to RoboRef Volunteer Hub is invite-only.',
+                    'Invalid invitation code. Access to RoboVolunteers is invite-only.',
               }),
               403,
             );

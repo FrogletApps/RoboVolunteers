@@ -1,10 +1,10 @@
-# RoboRef Volunteer Hub
+# RoboVolunteers
 
 [![Platform - Flutter](https://img.shields.io/badge/Platform-Flutter%20%7C%20Dart-02569B?logo=flutter)](https://flutter.dev)
 [![UI - Material 3](https://img.shields.io/badge/UI-Material%20Design%203-7B1FA2)](https://m3.material.io)
 [![State - Riverpod](https://img.shields.io/badge/State-Riverpod%202.x-0553B1)](https://riverpod.dev)
 
-**RoboRef Volunteer Hub** is an unofficial volunteer management and event coordination application built specifically for VEX Robotics competitions (**V5RC**, **VIQRC**, and **VEX U**), initially focused on the **United Kingdom**.
+**RoboVolunteers** is an unofficial volunteer management and event coordination application built specifically for VEX Robotics competitions (**V5RC**, **VIQRC**, and **VEX U**), initially focused on the **United Kingdom**.
 
 It allows invited volunteers to authenticate via **Continue with Google** or passwordless **6-digit Email OTP**, declare their certified qualifications, keep personal contact details strictly isolated from public rosters, and mark themselves as **Available** or **Confirmed** for UK events fetched directly from the official **VEX Events API** (`events.vex.com`).
 
@@ -119,7 +119,7 @@ To attach `volunteer.roboref.app`, uncomment `"routes"` in `wrangler.jsonc` and 
 ## 📂 Project Structure
 
 ```text
-RoboRefVolunteerHub/
+RoboVolunteers/
 ├── app/                                    # Flutter Web / Android / iOS application
 │   ├── lib/
 │   │   ├── firebase_options.dart           # Firebase platform config (--dart-define or flutterfire)

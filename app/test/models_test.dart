@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:roboref_volunteer_hub/core/constants/roles.dart';
-import 'package:roboref_volunteer_hub/features/profile/models/volunteer_model.dart';
-import 'package:roboref_volunteer_hub/features/volunteering/models/signup_model.dart';
-import 'package:roboref_volunteer_hub/features/events/models/event_model.dart';
+import 'package:robovolunteers/core/constants/roles.dart';
+import 'package:robovolunteers/features/profile/models/volunteer_model.dart';
+import 'package:robovolunteers/features/volunteering/models/signup_model.dart';
+import 'package:robovolunteers/features/events/models/event_model.dart';
 
 void main() {
   group('Models & Privacy Tests', () {

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:roboref_volunteer_hub/core/utils/sku_utils.dart';
-import 'package:roboref_volunteer_hub/core/utils/url_utils.dart';
+import 'package:robovolunteers/core/utils/sku_utils.dart';
+import 'package:robovolunteers/core/utils/url_utils.dart';
 
 void main() {
   group('SKU Utils Tests', () {

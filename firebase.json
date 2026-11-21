@@ -6,7 +6,7 @@
   "auth": {
     "providers": {
       "googleSignIn": {
-        "oAuthBrandDisplayName": "RoboRef Volunteer Hub",
+        "oAuthBrandDisplayName": "RoboVolunteers",
         "supportEmail": "roborefapp@gmail.com",
         "authorizedRedirectUris": [
           "https://volunteer-wrangler.firebaseapp.com/__/auth/handler",

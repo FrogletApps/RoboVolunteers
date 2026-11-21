@@ -4,16 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:roboref_volunteer_hub/main.dart';
-import 'package:roboref_volunteer_hub/features/auth_invites/services/auth_service.dart';
-import 'package:roboref_volunteer_hub/features/auth_invites/services/otp_auth_api_client.dart';
-import 'package:roboref_volunteer_hub/features/auth_invites/state/auth_provider.dart';
-import 'package:roboref_volunteer_hub/features/events/services/vex_events_service.dart';
-import 'package:roboref_volunteer_hub/features/events/state/events_provider.dart';
-import 'package:roboref_volunteer_hub/features/profile/models/volunteer_model.dart';
-import 'package:roboref_volunteer_hub/features/volunteering/models/signup_model.dart';
-import 'package:roboref_volunteer_hub/features/volunteering/services/volunteer_repository.dart';
-import 'package:roboref_volunteer_hub/features/volunteering/state/volunteering_provider.dart';
+import 'package:robovolunteers/main.dart';
+import 'package:robovolunteers/features/auth_invites/services/auth_service.dart';
+import 'package:robovolunteers/features/auth_invites/services/otp_auth_api_client.dart';
+import 'package:robovolunteers/features/auth_invites/state/auth_provider.dart';
+import 'package:robovolunteers/features/events/services/vex_events_service.dart';
+import 'package:robovolunteers/features/events/state/events_provider.dart';
+import 'package:robovolunteers/features/profile/models/volunteer_model.dart';
+import 'package:robovolunteers/features/volunteering/models/signup_model.dart';
+import 'package:robovolunteers/features/volunteering/services/volunteer_repository.dart';
+import 'package:robovolunteers/features/volunteering/state/volunteering_provider.dart';
 
 void main() {
   late MockClient offlineClient;
@@ -273,7 +273,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const RoboRefVolunteerHubApp(),
+        child: const RoboVolunteersApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -379,7 +379,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const RoboRefVolunteerHubApp(),
+        child: const RoboVolunteersApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -471,7 +471,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const RoboRefVolunteerHubApp(),
+        child: const RoboVolunteersApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -533,7 +533,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const RoboRefVolunteerHubApp(),
+        child: const RoboVolunteersApp(),
       ),
     );
     await tester.pumpAndSettle();

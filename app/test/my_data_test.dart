@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:roboref_volunteer_hub/features/profile/models/volunteer_model.dart';
-import 'package:roboref_volunteer_hub/features/volunteering/models/signup_model.dart';
-import 'package:roboref_volunteer_hub/features/volunteering/services/volunteer_repository.dart';
+import 'package:robovolunteers/features/profile/models/volunteer_model.dart';
+import 'package:robovolunteers/features/volunteering/models/signup_model.dart';
+import 'package:robovolunteers/features/volunteering/services/volunteer_repository.dart';
 
 void main() {
   group('My Volunteer Data & Signups Tests', () {
