@@ -8,12 +8,12 @@
   "assets": {
     "directory": "./app/build/web",
     "not_found_handling": "single-page-application"
-  }
-  // Uncomment once roboref.app is active in your Cloudflare account to attach volunteer.roboref.app:
-  // ,"routes": [
-  //   {
-  //     "pattern": "volunteer.roboref.app",
-  //     "custom_domain": true
-  //   }
-  // ]
+  },
+  // Custom domain route serving the Flutter Web SPA (while /api/* is handled by RoboAppsServer).
+  "routes": [
+    {
+      "pattern": "robovolunteers.link",
+      "custom_domain": true
+    }
+  ]
 }

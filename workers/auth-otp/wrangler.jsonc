@@ -25,6 +25,6 @@
     "OTP_TTL_SECONDS": "600",
     "MAX_OTP_ATTEMPTS": "5",
     "REQUIRE_TURNSTILE": "false",
-    "ALLOWED_ORIGINS": "https://volunteer.roboref.app,https://roboref.app,https://*.roboref.app,https://roboref-volunteer-hub.james-pearson.workers.dev,https://*.james-pearson.workers.dev,https://volunteer-wrangler.web.app,https://volunteer-wrangler.firebaseapp.com,http://localhost:5000,http://localhost:8080"
+    "ALLOWED_ORIGINS": "https://robovolunteers.link,https://*.robovolunteers.link,https://volunteer.roboref.app,https://roboref.app,https://*.roboref.app,https://roboref-volunteer-hub.james-pearson.workers.dev,https://*.james-pearson.workers.dev,https://volunteer-wrangler.web.app,https://volunteer-wrangler.firebaseapp.com,http://localhost:5000,http://localhost:8080"
   }
 }

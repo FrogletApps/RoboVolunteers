@@ -659,13 +659,48 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
     assert.equal(sentEmails.length, 0);
   });
 
-  it("allows wildcard origins (*.workers.dev, *.roboref.app) and local development IPs in CORS", async () => {
+  it("allows robovolunteers.link, wildcard origins (*.robovolunteers.link, *.workers.dev, *.roboref.app), and local development IPs in CORS", async () => {
     const corsEnv = createEnv({
-      ALLOWED_ORIGINS: "https://*.roboref.app,https://*.james-pearson.workers.dev,http://localhost:5000",
+      ALLOWED_ORIGINS:
+        "https://robovolunteers.link,https://*.robovolunteers.link,https://*.roboref.app,https://*.james-pearson.workers.dev,http://localhost:5000",
     });
     const deps = {
       now: () => new Date(currentTimeMs),
     };
+
+    // 0a. Apex robovolunteers.link origin
+    const apexRes = await handleWorkerRequest(
+      new Request("https://roboref-volunteer-auth-otp.james-pearson.workers.dev/api/auth/request-otp", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://robovolunteers.link",
+          "Access-Control-Request-Method": "POST",
+        },
+      }),
+      corsEnv,
+      deps
+    );
+    assert.equal(
+      apexRes.headers.get("Access-Control-Allow-Origin"),
+      "https://robovolunteers.link"
+    );
+
+    // 0b. Wildcard robovolunteers.link subdomain (e.g. test.robovolunteers.link)
+    const testSubRes = await handleWorkerRequest(
+      new Request("https://roboref-volunteer-auth-otp.james-pearson.workers.dev/api/auth/request-otp", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://test.robovolunteers.link",
+          "Access-Control-Request-Method": "POST",
+        },
+      }),
+      corsEnv,
+      deps
+    );
+    assert.equal(
+      testSubRes.headers.get("Access-Control-Allow-Origin"),
+      "https://test.robovolunteers.link"
+    );
 
     // 1. Matching wildcard worker subdomain
     const workerRes = await handleWorkerRequest(
@@ -732,7 +767,7 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
     );
     assert.equal(
       badRes.headers.get("Access-Control-Allow-Origin"),
-      "https://*.roboref.app"
+      "https://robovolunteers.link"
     );
   });
 

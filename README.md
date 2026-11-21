@@ -111,8 +111,8 @@ npm run test:worker    # Runs worker unit tests
 ```
 
 #### Authorizing Domains in Firebase Auth
-Make sure to authorize your Cloudflare domain(s) (e.g. `volunteer.roboref.app` and `roboref-volunteer-hub.<subdomain>.workers.dev`) under **Firebase Console → Authentication → Settings → Authorized domains** so Google Sign-In popups work.
-To attach `volunteer.roboref.app`, uncomment `"routes"` in `wrangler.jsonc` and deploy.
+Make sure to authorize your Cloudflare domain(s) (e.g. `robovolunteers.link`, `test.robovolunteers.link`, and `roboref-volunteer-hub.<subdomain>.workers.dev`) under **Firebase Console → Authentication → Settings → Authorized domains** so Google Sign-In popups work.
+`robovolunteers.link` is attached as a Cloudflare custom domain via `"routes"` in `wrangler.jsonc`.
 
 ---
 

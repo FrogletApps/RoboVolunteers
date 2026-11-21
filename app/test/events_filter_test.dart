@@ -213,7 +213,7 @@ void main() {
   });
 
   test(
-      'VexEventsService uses volunteerhub.link and test.volunteerhub.link proxies before events.vex.com fallback',
+      'VexEventsService uses robovolunteers.link and test.robovolunteers.link proxies before events.vex.com fallback',
       () async {
     final requestedUris = <Uri>[];
     final mockFallbackClient = MockClient((request) async {
@@ -230,8 +230,8 @@ void main() {
     expect(
       requestedUris.map((u) => '${u.scheme}://${u.host}${u.path}').toList(),
       equals([
-        'https://volunteerhub.link/api/vexevents/events',
-        'https://test.volunteerhub.link/api/vexevents/events',
+        'https://robovolunteers.link/api/vexevents/events',
+        'https://test.robovolunteers.link/api/vexevents/events',
         'https://events.vex.com/api/v2/events',
       ]),
     );
@@ -245,8 +245,8 @@ void main() {
     expect(
       requestedUris.map((u) => '${u.scheme}://${u.host}${u.path}').toList(),
       equals([
-        'https://volunteerhub.link/api/vexevents/events',
-        'https://test.volunteerhub.link/api/vexevents/events',
+        'https://robovolunteers.link/api/vexevents/events',
+        'https://test.robovolunteers.link/api/vexevents/events',
         'https://events.vex.com/api/v2/events',
       ]),
     );

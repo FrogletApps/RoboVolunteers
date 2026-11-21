@@ -9,6 +9,8 @@
         "oAuthBrandDisplayName": "RoboVolunteers",
         "supportEmail": "roborefapp@gmail.com",
         "authorizedRedirectUris": [
+          "https://robovolunteers.link/__/auth/handler",
+          "https://test.robovolunteers.link/__/auth/handler",
           "https://volunteer-wrangler.firebaseapp.com/__/auth/handler",
           "https://volunteer-wrangler.web.app/__/auth/handler",
           "https://roboref-volunteer-hub.james-pearson.workers.dev/__/auth/handler",

@@ -82,7 +82,7 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
   const allowOrigin = isAllowed
     ? origin!
-    : allowedList[0] ?? "https://volunteer.roboref.app";
+    : allowedList[0] ?? "https://robovolunteers.link";
 
   return {
     "Access-Control-Allow-Origin": allowOrigin,
