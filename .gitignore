@@ -12,3 +12,6 @@ ui-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# VS Code Workspace
+*.code-workspace
