@@ -212,6 +212,46 @@ void main() {
     expect(requestedUris.last.queryParametersAll['season[]'], equals(['203']));
   });
 
+  test(
+      'VexEventsService uses volunteerhub.link and test.volunteerhub.link proxies before events.vex.com fallback',
+      () async {
+    final requestedUris = <Uri>[];
+    final mockFallbackClient = MockClient((request) async {
+      requestedUris.add(request.url);
+      return http.Response('Service Unavailable', 503);
+    });
+
+    final service = VexEventsService(client: mockFallbackClient);
+
+    await expectLater(
+      () => service.searchUkEvents(program: 'VEX V5'),
+      throwsA(isA<VexEventsException>()),
+    );
+    expect(
+      requestedUris.map((u) => '${u.scheme}://${u.host}${u.path}').toList(),
+      equals([
+        'https://volunteerhub.link/api/vexevents/events',
+        'https://test.volunteerhub.link/api/vexevents/events',
+        'https://events.vex.com/api/v2/events',
+      ]),
+    );
+
+    requestedUris.clear();
+
+    await expectLater(
+      () => service.searchEventsBySkus(skus: {'RE-V5RC-26-9102'}),
+      throwsA(isA<VexEventsException>()),
+    );
+    expect(
+      requestedUris.map((u) => '${u.scheme}://${u.host}${u.path}').toList(),
+      equals([
+        'https://volunteerhub.link/api/vexevents/events',
+        'https://test.volunteerhub.link/api/vexevents/events',
+        'https://events.vex.com/api/v2/events',
+      ]),
+    );
+  });
+
   testWidgets(
       'Wide screen shows single-row filters with vertical divider, combined filters, and far-right Clear button',
       (WidgetTester tester) async {

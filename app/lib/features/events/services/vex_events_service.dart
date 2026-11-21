@@ -17,9 +17,9 @@ class VexEventsException implements Exception {
 class VexEventsService {
   final http.Client _client;
   static const String vexBaseUrl = 'https://events.vex.com/api/v2';
-  static const String proxyBaseUrl = 'https://roboref.app/api/vexevents';
+  static const String proxyBaseUrl = 'https://volunteerhub.link/api/vexevents';
   static const String testProxyBaseUrl =
-      'https://test.roboref.app/api/vexevents';
+      'https://test.volunteerhub.link/api/vexevents';
 
   VexEventsService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -176,7 +176,7 @@ class VexEventsService {
         .toList();
   }
 
-  /// Search UK VEX events from official VEX Events API or RoboRef proxy
+  /// Search UK VEX events from official VEX Events API or VolunteerHub proxy
   Future<List<EventModel>> searchUkEvents({
     String? query,
     String? program,
