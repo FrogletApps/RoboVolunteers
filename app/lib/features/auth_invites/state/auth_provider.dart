@@ -58,34 +58,42 @@ final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(apiClient: apiClient, backend: backend);
 });
 
-class AuthController extends StateNotifier<AuthGateState> {
-  final AuthService _authService;
+class AuthController extends Notifier<AuthGateState> {
+  late AuthService _authService;
   StreamSubscription<AuthSession?>? _subscription;
   int _sessionGeneration = 0;
 
-  AuthController(this._authService) : super(const AuthGateState.loading()) {
-    _init();
-  }
-
-  void _init() {
+  @override
+  AuthGateState build() {
+    _authService = ref.watch(authServiceProvider);
     _subscription = _authService.authSessionChanges().listen(
       _handleSessionChanged,
       onError: (_) {
-        state = const AuthGateState.unauthenticated();
+        if (ref.mounted) {
+          state = const AuthGateState.unauthenticated();
+        }
       },
     );
+    ref.onDispose(() {
+      ++_sessionGeneration;
+      _subscription?.cancel();
+      _subscription = null;
+    });
+    return const AuthGateState.loading();
   }
 
   Future<void> _handleSessionChanged(AuthSession? session) async {
     final generation = ++_sessionGeneration;
     if (session == null || !session.inviteVerified) {
-      state = const AuthGateState.unauthenticated();
+      if (ref.mounted) {
+        state = const AuthGateState.unauthenticated();
+      }
       return;
     }
 
     try {
       final profile = await _authService.fetchCurrentVolunteerProfile(session);
-      if (!mounted || generation != _sessionGeneration) return;
+      if (!ref.mounted || generation != _sessionGeneration) return;
 
       if (profile == null) {
         state = AuthGateState.needsOnboarding(session);
@@ -96,7 +104,7 @@ class AuthController extends StateNotifier<AuthGateState> {
         );
       }
     } catch (_) {
-      if (!mounted || generation != _sessionGeneration) return;
+      if (!ref.mounted || generation != _sessionGeneration) return;
       state = AuthGateState.needsOnboarding(session);
     }
   }
@@ -184,21 +192,14 @@ class AuthController extends StateNotifier<AuthGateState> {
   Future<void> logout() async {
     ++_sessionGeneration;
     await _authService.logout();
-    state = const AuthGateState.unauthenticated();
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
+    if (ref.mounted) {
+      state = const AuthGateState.unauthenticated();
+    }
   }
 }
 
 final authControllerProvider =
-    StateNotifierProvider<AuthController, AuthGateState>((ref) {
-  final authService = ref.watch(authServiceProvider);
-  return AuthController(authService);
-});
+    NotifierProvider<AuthController, AuthGateState>(AuthController.new);
 
 /// Reactive read-only view of the currently signed-in volunteer profile (or null).
 final currentVolunteerProvider = Provider<VolunteerModel?>((ref) {

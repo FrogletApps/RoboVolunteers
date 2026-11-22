@@ -79,8 +79,9 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
                   color: isSelected ? AppTheme.brandGreen : null,
                 ),
                 onSelected: (val) {
-                  ref.read(selectedProgramFilterProvider.notifier).state =
-                      val ? prog : 'All';
+                  ref
+                      .read(selectedProgramFilterProvider.notifier)
+                      .setProgram(val ? prog : 'All');
                 },
               );
             },
@@ -112,8 +113,9 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
                   color: isSelected ? accent : null,
                 ),
                 onSelected: (val) {
-                  ref.read(selectedSignupFilterProvider.notifier).state =
-                      val ? option : null;
+                  ref
+                      .read(selectedSignupFilterProvider.notifier)
+                      .setFilter(val ? option : null);
                 },
               );
             },
@@ -239,14 +241,14 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
                             icon: const Icon(Icons.clear, size: 18),
                             onPressed: () => ref
                                 .read(eventSearchQueryProvider.notifier)
-                                .state = '',
+                                .setQuery(''),
                           )
                         : null,
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   onChanged: (val) {
-                    ref.read(eventSearchQueryProvider.notifier).state = val;
+                    ref.read(eventSearchQueryProvider.notifier).setQuery(val);
                   },
                 ),
                 const SizedBox(height: 10),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -260,18 +261,35 @@ void main() {
         ),
         backend: persistedBackend,
       );
-      final controller = AuthController(service);
-      addTearDown(controller.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          authServiceProvider.overrideWithValue(service),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Initialize the controller and keep it alive for the duration of the test.
+      final sub = container.listen(authControllerProvider, (previous, next) {});
+      addTearDown(sub.close);
 
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(controller.state.status, equals(AuthGateStatus.authenticated));
-      expect(controller.state.volunteer?.name, equals('Sam Referee'));
+      expect(
+        container.read(authControllerProvider).status,
+        equals(AuthGateStatus.authenticated),
+      );
+      expect(
+        container.read(authControllerProvider).volunteer?.name,
+        equals('Sam Referee'),
+      );
 
       // Explicit logout clears remembered session
-      await controller.logout();
-      expect(controller.state.status, equals(AuthGateStatus.unauthenticated));
+      await container.read(authControllerProvider.notifier).logout();
+      expect(
+        container.read(authControllerProvider).status,
+        equals(AuthGateStatus.unauthenticated),
+      );
       expect(persistedBackend.currentSession, isNull);
     });
 

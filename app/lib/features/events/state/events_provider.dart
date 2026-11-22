@@ -26,17 +26,47 @@ final vexEventsServiceProvider = Provider<VexEventsService>((ref) {
   return VexEventsService();
 });
 
-final selectedProgramFilterProvider = StateProvider<String>((ref) => 'All');
+class SelectedProgramFilterNotifier extends Notifier<String> {
+  @override
+  String build() => 'All';
 
-final selectedSignupFilterProvider = StateProvider<String?>((ref) => null);
+  void setProgram(String program) => state = program;
+}
 
-final eventSearchQueryProvider = StateProvider<String>((ref) => '');
+final selectedProgramFilterProvider =
+    NotifierProvider<SelectedProgramFilterNotifier, String>(
+  SelectedProgramFilterNotifier.new,
+);
+
+class SelectedSignupFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setFilter(String? filter) => state = filter;
+}
+
+final selectedSignupFilterProvider =
+    NotifierProvider<SelectedSignupFilterNotifier, String?>(
+  SelectedSignupFilterNotifier.new,
+);
+
+class EventSearchQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void setQuery(String query) => state = query;
+}
+
+final eventSearchQueryProvider =
+    NotifierProvider<EventSearchQueryNotifier, String>(
+  EventSearchQueryNotifier.new,
+);
 
 /// Reset all active event filters and search back to showing all events
 void clearAllEventFilters(WidgetRef ref) {
-  ref.read(selectedProgramFilterProvider.notifier).state = 'All';
-  ref.read(selectedSignupFilterProvider.notifier).state = null;
-  ref.read(eventSearchQueryProvider.notifier).state = '';
+  ref.read(selectedProgramFilterProvider.notifier).setProgram('All');
+  ref.read(selectedSignupFilterProvider.notifier).setFilter(null);
+  ref.read(eventSearchQueryProvider.notifier).setQuery('');
 }
 
 final ukEventsListProvider = FutureProvider<List<EventModel>>((ref) async {
