@@ -20,6 +20,6 @@
     "typecheck": "npm --prefix workers/auth-otp run typecheck"
   },
   "devDependencies": {
-    "wrangler": "^4.157.0"
+    "wrangler": "^4.165.0"
   }
 }
