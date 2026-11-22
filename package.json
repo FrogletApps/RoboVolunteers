@@ -20,6 +20,10 @@
     "typecheck": "npm --prefix workers/auth-otp run typecheck"
   },
   "devDependencies": {
-    "wrangler": "^4.157.0"
+    "wrangler": "^4.166.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261119.1": true
   }
 }
