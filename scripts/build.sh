@@ -55,6 +55,32 @@ build_flutter() {
     fi
   fi
 
+  local has_firebase_define=false
+  for arg in "$@"; do
+    case "$arg" in
+      --dart-define-from-file*|*FIREBASE_API_KEY=*)
+        has_firebase_define=true
+        break
+        ;;
+    esac
+  done
+
+  if [ "$has_firebase_define" = false ]; then
+    if [ -f "$APP_DIR/firebase.env.json" ]; then
+      echo "Using Firebase config from app/firebase.env.json"
+      extra_flags+=("--dart-define-from-file=$APP_DIR/firebase.env.json")
+    elif [ -f "$SCRIPT_DIR/../firebase.env.json" ]; then
+      echo "Using Firebase config from firebase.env.json"
+      extra_flags+=("--dart-define-from-file=$SCRIPT_DIR/../firebase.env.json")
+    elif [ -n "${FIREBASE_API_KEY:-}" ]; then
+      echo "Using FIREBASE_API_KEY from environment"
+      extra_flags+=("--dart-define=FIREBASE_API_KEY=$FIREBASE_API_KEY")
+    else
+      echo "Error: Missing Firebase API key. Copy app/firebase.env.example.json to app/firebase.env.json and set FIREBASE_API_KEY, or set the FIREBASE_API_KEY environment variable." >&2
+      exit 1
+    fi
+  fi
+
   flutter build "$flutter_target" --build-name="$VERSION_NAME" --build-number="$BUILD_NUMBER" "${extra_flags[@]}" "$@"
   echo ">>> Flutter client ($flutter_target) build completed successfully."
 }

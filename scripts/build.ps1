@@ -77,6 +77,34 @@ function Build-Flutter([string]$flutterTarget) {
             $buildArgs += "--wasm"
         }
 
+        # Wire Firebase API key from local firebase.env.json or FIREBASE_API_KEY env var
+        $hasFirebaseDefine = $false
+        if ($ExtraArgs) {
+            foreach ($arg in $ExtraArgs) {
+                if ($arg -like "--dart-define-from-file*" -or $arg -like "*FIREBASE_API_KEY=*") {
+                    $hasFirebaseDefine = $true
+                    break
+                }
+            }
+        }
+
+        if (-not $hasFirebaseDefine) {
+            $appEnvFile = Join-Path $appDir "firebase.env.json"
+            $rootEnvFile = Join-Path $PSScriptRoot "..\firebase.env.json"
+            if (Test-Path $appEnvFile) {
+                Write-Host "Using Firebase config from app/firebase.env.json" -ForegroundColor Gray
+                $buildArgs += "--dart-define-from-file=$appEnvFile"
+            } elseif (Test-Path $rootEnvFile) {
+                Write-Host "Using Firebase config from firebase.env.json" -ForegroundColor Gray
+                $buildArgs += "--dart-define-from-file=$rootEnvFile"
+            } elseif (-not [string]::IsNullOrWhiteSpace($env:FIREBASE_API_KEY)) {
+                Write-Host "Using FIREBASE_API_KEY from environment" -ForegroundColor Gray
+                $buildArgs += "--dart-define=FIREBASE_API_KEY=$($env:FIREBASE_API_KEY)"
+            } else {
+                throw "Missing Firebase API key. Copy app/firebase.env.example.json to app/firebase.env.json and set FIREBASE_API_KEY, or set the FIREBASE_API_KEY environment variable."
+            }
+        }
+
         if ($ExtraArgs) {
             $buildArgs += $ExtraArgs
         }

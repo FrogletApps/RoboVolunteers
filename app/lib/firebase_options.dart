@@ -5,14 +5,13 @@ import 'package:flutter/foundation.dart'
 /// Firebase configuration options for RoboVolunteers.
 ///
 /// Configured for the `volunteer-wrangler` Firebase project by default, while
-/// still allowing `--dart-define=FIREBASE_API_KEY=...`, `FIREBASE_PROJECT_ID=...`,
-/// `FIREBASE_APP_ID=...`, `FIREBASE_MESSAGING_SENDER_ID=...`, and
-/// `FIREBASE_AUTH_DOMAIN=...` overrides at build time (`flutter build web`).
+/// requiring `FIREBASE_API_KEY` at build time via
+/// `--dart-define-from-file=firebase.env.json` or
+/// `--dart-define=FIREBASE_API_KEY=...` (and still allowing overrides for
+/// `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID`,
+/// and `FIREBASE_AUTH_DOMAIN`).
 class DefaultFirebaseOptions {
-  static const String _apiKey = String.fromEnvironment(
-    'FIREBASE_API_KEY',
-    defaultValue: 'AIzaSyCmpXK8jBBI33iZlomSqQlR7gsps8qhg_A',
-  );
+  static const String _apiKey = String.fromEnvironment('FIREBASE_API_KEY');
   static const String _projectId = String.fromEnvironment(
     'FIREBASE_PROJECT_ID',
     defaultValue: 'volunteer-wrangler',

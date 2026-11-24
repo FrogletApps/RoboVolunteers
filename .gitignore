@@ -1,6 +1,7 @@
 # Cloudflare Wrangler & local secrets
 .wrangler/
 .dev.vars
+firebase.env.json
 node_modules/
 
 # Firebase CLI cache & debug logs

@@ -59,12 +59,14 @@ npx wrangler deploy
    ```bash
    npx -y firebase-tools@latest deploy --only firestore
    ```
-2. Configure FlutterFire inside `app/`:
+2. Configure your local Firebase API key (kept out of git) and install dependencies inside `app/`:
    ```bash
+   cp app/firebase.env.example.json app/firebase.env.json
+   # Edit app/firebase.env.json and paste your Firebase Web API key
    cd app
-   flutterfire configure
    flutter pub get
    ```
+   *(For CI/CD or one-off builds, you can also set the `FIREBASE_API_KEY` environment variable instead of creating `app/firebase.env.json`.)*
 3. Run tests and code analysis:
    ```bash
    flutter analyze
