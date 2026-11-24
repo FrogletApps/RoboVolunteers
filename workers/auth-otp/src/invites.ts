@@ -78,7 +78,10 @@ export function toInviteMetadata(record: StoredInviteRecord): Record<string, unk
   return {
     id: record.id,
     codeHash: record.codeHash,
-    code: record.status === "active" ? record.code : null,
+    code:
+      record.status === "active" || record.status === "revoked"
+        ? record.code
+        : null,
     codeHint: record.codeHint,
     label: clampStr(record.label, MAX_LABEL_LENGTH),
     status: record.status,
@@ -101,12 +104,14 @@ export function toAdminInviteItem(
   now: Date
 ): AdminInviteResponseItem {
   const status = getEffectiveInviteStatus(record, now);
-  const exposeCode = status === "active" && typeof record.code === "string" && record.code.length > 0;
+  const hasCode = typeof record.code === "string" && record.code.length > 0;
+  const exposeCode = (status === "active" || status === "revoked") && hasCode;
+  const exposeUrl = status === "active" && hasCode;
   return {
     id: record.id,
     code: exposeCode ? record.code : null,
     codeHint: record.codeHint,
-    inviteUrl: exposeCode && record.code ? buildInviteUrl(record.code, appBaseUrl) : null,
+    inviteUrl: exposeUrl && record.code ? buildInviteUrl(record.code, appBaseUrl) : null,
     label: record.label,
     status,
     createdAt: record.createdAt,
@@ -364,7 +369,6 @@ export async function revokeOneTimeInvite(
 
   const updated: StoredInviteRecord = {
     ...record,
-    code: null,
     status: "revoked",
     revokedAt: now.toISOString(),
     revokedByUid: admin.uid,
@@ -386,8 +390,8 @@ function assertInviteActive(record: StoredInviteRecord, now: Date): void {
   if (record.status === "revoked") {
     throw new HttpError(
       403,
-      "invite_code_revoked",
-      "This invitation code has been revoked. Please ask an administrator for a new invite link."
+      "invalid_invite_code",
+      "Invalid invitation code. Access to RoboVolunteers is invite-only."
     );
   }
   if (isInviteExpired(record, now)) {

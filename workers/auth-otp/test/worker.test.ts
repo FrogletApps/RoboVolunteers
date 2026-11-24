@@ -1314,7 +1314,7 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
     assert.equal(((await claim2.json()) as { error: string }).error, "invite_code_used");
     assert.equal(registeredFirebaseUsers.get("g2@example.org")?.inviteVerified, false);
 
-    // Invite #2: Admin revokes it -> rejected with invite_code_revoked
+    // Invite #2: Admin revokes it -> rejected with generic invalid_invite_code message
     const revokeRes = await handleWorkerRequest(
       new Request(`https://roboref.app/api/admin/invites/${invites[1].id}/revoke`, {
         method: "POST",
@@ -1328,7 +1328,8 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
       invite: AdminInviteResponseItem;
     };
     assert.equal(revokedPayload.invite.status, "revoked");
-    assert.equal(revokedPayload.invite.code, null);
+    assert.equal(revokedPayload.invite.code, invites[1].code);
+    assert.equal(revokedPayload.invite.inviteUrl, null);
 
     const claimRevoked = await handleWorkerRequest(
       new Request("https://roboref.app/api/auth/claim-invite", {
@@ -1344,9 +1345,14 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
       deps
     );
     assert.equal(claimRevoked.status, 403);
+    const claimRevokedJson = (await claimRevoked.json()) as {
+      error: string;
+      message: string;
+    };
+    assert.equal(claimRevokedJson.error, "invalid_invite_code");
     assert.equal(
-      ((await claimRevoked.json()) as { error: string }).error,
-      "invite_code_revoked"
+      claimRevokedJson.message,
+      "Invalid invitation code. Access to RoboVolunteers is invite-only."
     );
 
     // Invite #3: Advance 8 days -> expires -> rejected with invite_code_expired
@@ -1393,6 +1399,11 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
     const listed = (await listAfterExpiry.json()) as {
       invites: AdminInviteResponseItem[];
     };
+    const secondItem = listed.invites.find((i) => i.id === invites[1].id);
+    assert.equal(secondItem?.status, "revoked");
+    assert.equal(secondItem?.code, invites[1].code);
+    assert.equal(secondItem?.inviteUrl, null);
+
     const thirdItem = listed.invites.find((i) => i.id === invites[2].id);
     assert.equal(thirdItem?.status, "expired");
     assert.equal(thirdItem?.code, null);

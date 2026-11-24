@@ -866,10 +866,14 @@ class _AdminPortalScreenState extends ConsumerState<AdminPortalScreen> {
                 Expanded(
                   child: SelectableText(
                     invite.displayCode,
-                    style: const TextStyle(
+                    key: Key('invite_code_text_${invite.id}'),
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
+                      decoration:
+                          invite.isRevoked ? TextDecoration.lineThrough : null,
+                      color: invite.isRevoked ? Colors.grey[600] : null,
                     ),
                   ),
                 ),

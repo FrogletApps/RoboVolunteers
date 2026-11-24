@@ -148,7 +148,6 @@ void main() {
                 'ok': true,
                 'invite': {
                   ...createdPayload,
-                  'code': null,
                   'inviteUrl': null,
                   'status': 'revoked',
                   'revokedAt': '2026-11-24T10:05:00.000Z',
@@ -191,7 +190,7 @@ void main() {
         inviteId: 'inv_0001000100010001',
       );
       expect(revoked.status, equals(InviteCodeStatus.revoked));
-      expect(revoked.code, isNull);
+      expect(revoked.code, equals('RV-AAAA-BBBB-CCCC'));
       expect(revoked.resolveInviteUrl(), isNull);
     });
   });
@@ -429,7 +428,6 @@ void main() {
                 .indexWhere((i) => i['id'] == 'inv_generated0000002');
             final updated = {
               ...serverInvites[idx],
-              'code': null,
               'inviteUrl': null,
               'status': 'revoked',
               'revokedAt': '2026-11-24T21:05:00.000Z',
@@ -514,13 +512,21 @@ void main() {
         await tester.tap(find.widgetWithText(ElevatedButton, 'Revoke'));
         await tester.pumpAndSettle();
 
-        // Invite status changes to Revoked and raw URL disappears
+        // Invite status changes to Revoked, shareable URL disappears, and full code stays visible crossed out
         expect(find.text('Revoked'), findsOneWidget);
         expect(
           find.text('https://robovolunteers.link/?invite=RV-9W4K-2M8P-7Q3N'),
           findsNothing,
         );
-        expect(find.text('RV-9W4K-••••-••••'), findsOneWidget);
+        final revokedCodeFinder =
+            find.byKey(const Key('invite_code_text_inv_generated0000002'));
+        expect(revokedCodeFinder, findsOneWidget);
+        final revokedCodeWidget = tester.widget<SelectableText>(revokedCodeFinder);
+        expect(revokedCodeWidget.data, equals('RV-9W4K-2M8P-7Q3N'));
+        expect(
+          revokedCodeWidget.style?.decoration,
+          equals(TextDecoration.lineThrough),
+        );
       },
     );
   });
