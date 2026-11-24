@@ -17,7 +17,7 @@ It allows invited volunteers to authenticate via **Continue with Google** or pas
   - Native **Cloudflare Email Service** (`send_email`) delivery protected by 4-layer rate limiting (60s cooldown, **12 emails/day per user**, per-IP cap, Cloudflare Turnstile, and a global daily circuit breaker).
   - Persistent device sessions via **Firebase Authentication** (`Persistence.LOCAL` on Web, Keychain on iOS, Keystore on Android) so volunteers stay signed in across weeks/months until explicit logout.
 - 🛡️ **Admin Portal & One-Time Invite Links**:
-  - Manually configured administrators (`ADMIN_EMAILS` Cloudflare Worker secret or Firebase Auth `admin: true` claim) get access to the in-app **Admin Portal**.
+  - Manually configured administrators (`ADMIN_EMAILS` Cloudflare Worker dashboard variable/secret or Firebase Auth `admin: true` claim) get access to the in-app **Admin Portal**.
   - Generate single-use invite codes (`RV-XXXX-XXXX-XXXX`) individually or in batches with optional notes and expiry dates, copy ready-to-share registration hyperlinks (`https://robovolunteers.link/?invite=...`) that automatically pre-fill the New Volunteer flow, track redemptions, and revoke unused codes.
 - 🛡️ **Zero-PII Roster Architecture**:
   - Personal contact details (`email`, `phone`) are isolated in owner-only `volunteer_private/{uid}` documents in **Cloud Firestore** (`firestore.rules`) and are never exposed on `volunteers/{uid}` or `event_signups` documents.

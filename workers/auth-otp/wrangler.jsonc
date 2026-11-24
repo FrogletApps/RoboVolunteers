@@ -3,6 +3,8 @@
   "name": "roboref-volunteer-auth-otp",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-31",
+  // Preserve dashboard-managed plaintext variables (e.g. ADMIN_EMAILS) across `wrangler deploy`.
+  "keep_vars": true,
   "send_email": [
     {
       "name": "EMAIL"
