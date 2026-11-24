@@ -34,6 +34,21 @@ class OtpVerifyResult {
   });
 }
 
+@immutable
+class AuthStatusResult {
+  final String uid;
+  final String email;
+  final bool inviteVerified;
+  final bool isAdmin;
+
+  const AuthStatusResult({
+    required this.uid,
+    required this.email,
+    required this.inviteVerified,
+    required this.isAdmin,
+  });
+}
+
 class AuthApiException implements Exception {
   final String code;
   final String message;
@@ -202,6 +217,36 @@ class OtpAuthApiClient {
         retryAfterSeconds: data['retryAfterSeconds'] as int?,
       );
     }
+  }
+
+  /// Queries the Cloudflare Worker for the caller's verified identity and admin status.
+  Future<AuthStatusResult> fetchAuthStatus({
+    required String idToken,
+  }) async {
+    final uri = _buildUri('/api/auth/me');
+    final response = await _httpClient.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${idToken.trim()}',
+      },
+    );
+
+    final data = _decodeJsonMap(response.body);
+    if (response.statusCode != 200 || data['ok'] != true) {
+      throw AuthApiException(
+        code: data['error'] as String? ?? 'auth_status_failed',
+        message: data['message'] as String? ??
+            'Unable to verify account permissions right now.',
+        retryAfterSeconds: (data['retryAfterSeconds'] as num?)?.toInt(),
+      );
+    }
+
+    return AuthStatusResult(
+      uid: data['uid'] as String? ?? '',
+      email: data['email'] as String? ?? '',
+      inviteVerified: data['inviteVerified'] == true,
+      isAdmin: data['isAdmin'] == true,
+    );
   }
 
   Map<String, dynamic> _decodeJsonMap(String raw) {

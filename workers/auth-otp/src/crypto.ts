@@ -69,6 +69,18 @@ export async function timingSafeEqualStrings(
 }
 
 /**
+ * Normalizes a submitted invite code (trim + uppercase) and validates bounds.
+ */
+export function normalizeInviteCode(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const candidate = raw.trim().toUpperCase();
+  if (!candidate || candidate.length > 64) {
+    return null;
+  }
+  return candidate;
+}
+
+/**
  * Verifies a submitted invite code against a comma-separated list of valid codes
  * in `INVITE_CODES` without short-circuiting.
  */
@@ -76,11 +88,8 @@ export async function verifyInviteCodeConstantTime(
   submittedRaw: unknown,
   configuredCodesCsv: string | undefined
 ): Promise<boolean> {
-  if (typeof submittedRaw !== "string" || !configuredCodesCsv) {
-    return false;
-  }
-  const candidate = submittedRaw.trim().toUpperCase();
-  if (!candidate || candidate.length > 64) {
+  const candidate = normalizeInviteCode(submittedRaw);
+  if (!candidate || !configuredCodesCsv) {
     return false;
   }
 
@@ -101,6 +110,88 @@ export async function verifyInviteCodeConstantTime(
     }
   }
   return matched;
+}
+
+/**
+ * Checks whether an email address is listed in a comma/semicolon/newline-separated
+ * allowlist (e.g. `ADMIN_EMAILS`) using constant-time comparison without short-circuiting.
+ */
+export async function isEmailInAllowlist(
+  email: string,
+  allowlistRaw: string | undefined
+): Promise<boolean> {
+  const normalized = normalizeAndValidateEmail(email);
+  if (!normalized || !allowlistRaw) {
+    return false;
+  }
+
+  const allowedEmails = allowlistRaw
+    .split(/[,;\n\r]+/)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+
+  if (allowedEmails.length === 0) {
+    return false;
+  }
+
+  let matched = false;
+  for (const allowed of allowedEmails) {
+    const isMatch = await timingSafeEqualStrings(normalized, allowed);
+    if (isMatch) {
+      matched = true;
+    }
+  }
+  return matched;
+}
+
+// Visually unambiguous uppercase alphanumeric characters (omits 0, 1, I, L, O)
+const INVITE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/**
+ * Generates a cryptographically random one-time invite code (`RV-XXXX-XXXX-XXXX`,
+ * ~59.4 bits of entropy) using CSPRNG rejection sampling.
+ */
+export function generateOneTimeInviteCode(): string {
+  const alphabetLen = INVITE_CODE_ALPHABET.length; // 31
+  const maxUnbiased = Math.floor(256 / alphabetLen) * alphabetLen; // 248
+  const chars: string[] = [];
+  const buf = new Uint8Array(16);
+
+  while (chars.length < 12) {
+    crypto.getRandomValues(buf);
+    for (let i = 0; i < buf.length && chars.length < 12; i++) {
+      if (buf[i] < maxUnbiased) {
+        chars.push(INVITE_CODE_ALPHABET[buf[i] % alphabetLen]);
+      }
+    }
+  }
+
+  return `RV-${chars.slice(0, 4).join("")}-${chars.slice(4, 8).join("")}-${chars
+    .slice(8, 12)
+    .join("")}`;
+}
+
+/**
+ * Generates a unique opaque invite record ID (`inv_<16-hex-chars>`).
+ */
+export function generateInviteId(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return `inv_${bytesToHex(bytes)}`;
+}
+
+/**
+ * Produces a non-sensitive masked display hint for an invite code (e.g. `RV-7K4M-••••-••••`).
+ */
+export function buildInviteCodeHint(code: string): string {
+  const parts = code.trim().toUpperCase().split("-");
+  if (parts.length === 4 && parts[0] === "RV") {
+    return `RV-${parts[1]}-••••-••••`;
+  }
+  if (code.length <= 4) {
+    return "••••";
+  }
+  return `${code.slice(0, Math.min(7, code.length))}••••`;
 }
 
 /**

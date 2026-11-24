@@ -1,5 +1,8 @@
 # Copy to `.dev.vars` for local `wrangler dev` testing (NEVER commit `.dev.vars`!)
+# Optional static/bootstrap invite codes (admin-generated one-time codes are stored in KV):
 INVITE_CODES="UKVEX-2026,VEX-REF-UK"
+# Comma-separated list of admin email addresses allowed to access the Admin Portal:
+ADMIN_EMAILS="admin@example.com"
 OTP_HMAC_SECRET="replace-with-32-byte-random-hex-secret"
 # Cloudflare Turnstile official dummy test secret key for local development:
 TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"

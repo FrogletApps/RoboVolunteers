@@ -15,6 +15,7 @@
     }
   ],
   "vars": {
+    "PUBLIC_APP_URL": "https://robovolunteers.link",
     "SENDER_EMAIL": "noreply@roboref.app",
     "SENDER_NAME": "RoboVolunteers",
     "MAX_DAILY_EMAILS_PER_USER": "12",

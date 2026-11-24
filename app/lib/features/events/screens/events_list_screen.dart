@@ -9,6 +9,7 @@ import '../state/events_provider.dart';
 import '../../volunteering/state/volunteering_provider.dart';
 import '../../volunteering/screens/event_roster_screen.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../admin/screens/admin_portal_screen.dart';
 import '../../auth_invites/state/auth_provider.dart';
 
 class EventsListScreen extends ConsumerStatefulWidget {
@@ -164,6 +165,7 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
     final selectedProgram = ref.watch(selectedProgramFilterProvider);
     final selectedSignupFilter = ref.watch(selectedSignupFilterProvider);
     final searchQuery = ref.watch(eventSearchQueryProvider);
+    final isAdmin = ref.watch(isAdminProvider);
 
     final hasActiveFilters = selectedProgram != 'All' ||
         selectedSignupFilter != null ||
@@ -173,6 +175,17 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
       appBar: AppBar(
         title: const Text('RoboVolunteers'),
         actions: [
+          if (isAdmin)
+            IconButton(
+              key: const Key('admin_portal_button'),
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              tooltip: 'Admin Portal',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AdminPortalScreen()),
+                );
+              },
+            ),
           IconButton(
             key: const Key('profile_button'),
             icon: const Icon(Icons.person_outline),

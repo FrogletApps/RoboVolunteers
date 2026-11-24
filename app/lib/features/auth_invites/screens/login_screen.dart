@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/invite_link_utils.dart';
 import '../services/otp_auth_api_client.dart';
 import '../state/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  final String? initialInviteCode;
+
+  const LoginScreen({
+    super.key,
+    this.initialInviteCode,
+  });
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -19,6 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _otpController = TextEditingController();
 
   AuthOtpMode _mode = AuthOtpMode.login;
+  bool _prefilledFromLink = false;
   bool _awaitingOtp = false;
   bool _isBusy = false;
   bool _isGoogleBusy = false;
@@ -28,6 +35,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Timer? _cooldownTimer;
 
   bool get _anyBusy => _isBusy || _isGoogleBusy;
+
+  @override
+  void initState() {
+    super.initState();
+    final rawCode =
+        widget.initialInviteCode ?? ref.read(pendingInviteCodeProvider);
+    if (rawCode != null && rawCode.trim().isNotEmpty) {
+      final normalized = InviteLinkUtils.normalizeInviteCode(rawCode);
+      if (InviteLinkUtils.isValidInviteCodeFormat(normalized)) {
+        _mode = AuthOtpMode.join;
+        _inviteCodeController.text = normalized;
+        _prefilledFromLink = true;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -348,6 +370,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _buildBanner(
             message: _errorMessage!,
             isError: true,
+          ),
+          const SizedBox(height: 14),
+        ] else if (isJoin && _prefilledFromLink) ...[
+          _buildBanner(
+            message:
+                'Invite link detected — your one-time invitation code is pre-filled below. Continue with Google or enter your email to register.',
+            isError: false,
           ),
           const SizedBox(height: 14),
         ],

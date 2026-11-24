@@ -13,9 +13,12 @@ It allows invited volunteers to authenticate via **Continue with Google** or pas
 ## ✨ Key Features
 
 - 🔐 **Passwordless Auth (Google + 6-Digit Email OTP) & Persistent Sessions**:
-  - Invite-only new volunteer onboarding verified server-side against encrypted Cloudflare Secrets (`INVITE_CODES`) for both Google Sign-In and Email OTP.
+  - Invite-only new volunteer onboarding verified server-side against **one-time invite codes** (stored in Cloudflare KV) and optional legacy static `INVITE_CODES` secrets for both Google Sign-In and Email OTP.
   - Native **Cloudflare Email Service** (`send_email`) delivery protected by 4-layer rate limiting (60s cooldown, **12 emails/day per user**, per-IP cap, Cloudflare Turnstile, and a global daily circuit breaker).
   - Persistent device sessions via **Firebase Authentication** (`Persistence.LOCAL` on Web, Keychain on iOS, Keystore on Android) so volunteers stay signed in across weeks/months until explicit logout.
+- 🛡️ **Admin Portal & One-Time Invite Links**:
+  - Manually configured administrators (`ADMIN_EMAILS` Cloudflare Worker secret or Firebase Auth `admin: true` claim) get access to the in-app **Admin Portal**.
+  - Generate single-use invite codes (`RV-XXXX-XXXX-XXXX`) individually or in batches with optional notes and expiry dates, copy ready-to-share registration hyperlinks (`https://robovolunteers.link/?invite=...`) that automatically pre-fill the New Volunteer flow, track redemptions, and revoke unused codes.
 - 🛡️ **Zero-PII Roster Architecture**:
   - Personal contact details (`email`, `phone`) are isolated in owner-only `volunteer_private/{uid}` documents in **Cloud Firestore** (`firestore.rules`) and are never exposed on `volunteers/{uid}` or `event_signups` documents.
 - 🏅 **Qualification Management**:
@@ -44,7 +47,7 @@ It allows invited volunteers to authenticate via **Continue with Google** or pas
 ## 🚀 Getting Started
 
 ### 1. Cloudflare Auth OTP Worker (`workers/auth-otp/`)
-See [workers/auth-otp/README.md](workers/auth-otp/README.md) to configure the `AUTH_OTP_KV` namespace, onboard `roboref.app` in Cloudflare Email Service, set `INVITE_CODES` / `OTP_HMAC_SECRET` / `FIREBASE_SERVICE_ACCOUNT_JSON` / `TURNSTILE_SECRET_KEY` secrets, and deploy:
+See [workers/auth-otp/README.md](workers/auth-otp/README.md) to configure the `AUTH_OTP_KV` namespace, onboard `roboref.app` in Cloudflare Email Service, set `ADMIN_EMAILS` / `INVITE_CODES` / `OTP_HMAC_SECRET` / `FIREBASE_SERVICE_ACCOUNT_JSON` / `TURNSTILE_SECRET_KEY` secrets, and deploy:
 ```bash
 cd workers/auth-otp
 npm test

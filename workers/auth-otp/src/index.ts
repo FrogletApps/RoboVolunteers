@@ -1,9 +1,9 @@
 import {
   generateSixDigitOtp,
   hmacSha256Hex,
+  isEmailInAllowlist,
   normalizeAndValidateEmail,
   timingSafeEqualStrings,
-  verifyInviteCodeConstantTime,
 } from "./crypto.ts";
 import { sendOtpEmail } from "./email.ts";
 import {
@@ -13,10 +13,21 @@ import {
   mintFirebaseCustomToken,
   parseServiceAccount,
   verifyFirebaseIdToken,
+  type VerifiedFirebaseToken,
 } from "./firebaseAdmin.ts";
+import {
+  consumeOneTimeInviteByHash,
+  createOneTimeInvites,
+  getPublicAppUrl,
+  listOneTimeInvites,
+  revokeOneTimeInvite,
+  saveInviteRecord,
+  validateInviteCodeForJoin,
+} from "./invites.ts";
 import {
   checkEmailSendQuota,
   commitEmailSendQuota,
+  enforceAndRecordAdminIpLimit,
   enforceAndRecordRequestIpLimit,
   enforceAndRecordVerifyIpLimit,
   parseRateLimitConfig,
@@ -24,8 +35,10 @@ import {
 import { verifyTurnstileToken } from "./turnstile.ts";
 import type {
   ClaimInviteBody,
+  CreateInviteBody,
   Env,
   RequestOtpBody,
+  StoredInviteRecord,
   StoredOtpRecord,
   VerifyOtpBody,
 } from "./types.ts";
@@ -86,7 +99,7 @@ function getCorsHeaders(request: Request, env: Env): Record<string, string> {
 
   return {
     "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
@@ -179,18 +192,16 @@ async function handleRequestOtp(
   // Layer 2: Cloudflare Turnstile bot check
   await verifyTurnstileToken(env, body.turnstileToken, clientIp, fetchImpl);
 
-  // Layer 3a: For new volunteers, validate invite code in constant time BEFORE checking/sending email
+  // Layer 3a: For new volunteers, validate invite code (one-time KV or legacy static) BEFORE sending email
+  let oneTimeInviteCodeHash: string | undefined;
   if (mode === "join") {
-    const validInvite = await verifyInviteCodeConstantTime(
+    const resolvedInvite = await validateInviteCodeForJoin(
       body.inviteCode,
-      env.INVITE_CODES
+      env,
+      now
     );
-    if (!validInvite) {
-      throw new HttpError(
-        403,
-        "invalid_invite_code",
-        "Invalid invitation code. Access to RoboVolunteers is invite-only."
-      );
+    if (resolvedInvite.kind === "one_time") {
+      oneTimeInviteCodeHash = resolvedInvite.codeHash;
     }
   }
 
@@ -233,6 +244,7 @@ async function handleRequestOtp(
     codeHash,
     attempts: 0,
     createdAtMs: now.getTime(),
+    ...(oneTimeInviteCodeHash ? { inviteCodeHash: oneTimeInviteCodeHash } : {}),
   };
 
   await sendOtpEmail(
@@ -387,15 +399,62 @@ async function handleVerifyOtp(
   await env.AUTH_OTP_KV.delete(otpKey);
 
   const serviceAccount = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  const uid = await ensureVerifiedVolunteerUser(
+  const existingUser = await lookupFirebaseUserByEmail(
     serviceAccount,
     email,
     fetchImpl
   );
+
+  let uid: string;
+  if (record.inviteCodeHash && !existingUser?.inviteVerified) {
+    let previousInvite: StoredInviteRecord | null = null;
+    previousInvite = await consumeOneTimeInviteByHash(
+      env.AUTH_OTP_KV,
+      record.inviteCodeHash,
+      { uid: existingUser?.uid ?? "pending", email },
+      now
+    );
+
+    try {
+      uid = await ensureVerifiedVolunteerUser(
+        serviceAccount,
+        email,
+        fetchImpl,
+        existingUser
+      );
+      if (uid !== (existingUser?.uid ?? "pending")) {
+        await saveInviteRecord(env.AUTH_OTP_KV, {
+          ...previousInvite,
+          code: null,
+          status: "used",
+          usedAt: now.toISOString(),
+          usedByUid: uid,
+          usedByEmail: email,
+        });
+      }
+    } catch (err) {
+      if (previousInvite) {
+        await saveInviteRecord(env.AUTH_OTP_KV, previousInvite);
+      }
+      throw err;
+    }
+  } else {
+    uid = await ensureVerifiedVolunteerUser(
+      serviceAccount,
+      email,
+      fetchImpl,
+      existingUser
+    );
+  }
+
+  const customTokenClaims: Record<string, unknown> = {
+    ...(existingUser?.customClaims ?? {}),
+    inviteVerified: true,
+  };
   const customToken = await mintFirebaseCustomToken(
     serviceAccount,
     uid,
-    { inviteVerified: true },
+    customTokenClaims,
     Math.floor(now.getTime() / 1000)
   );
 
@@ -433,11 +492,7 @@ async function handleClaimInvite(
     throw new HttpError(400, "invalid_json", "Invalid JSON request body.");
   }
 
-  const authHeader = request.headers.get("Authorization") ?? "";
-  const bearerToken = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-  const idToken = (bearerToken || body.idToken || "").trim();
+  const idToken = extractBearerToken(request, body.idToken);
   if (!idToken) {
     throw new HttpError(
       401,
@@ -448,10 +503,7 @@ async function handleClaimInvite(
 
   const now = deps.now ? deps.now() : new Date();
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const clientIp =
-    request.headers.get("CF-Connecting-IP") ??
-    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
-    "unknown-ip";
+  const clientIp = getClientIp(request);
 
   const ipHash = await hmacSha256Hex(env.OTP_HMAC_SECRET, `ip:${clientIp}`);
   const rateConfig = parseRateLimitConfig(env);
@@ -467,18 +519,12 @@ async function handleClaimInvite(
   // Layer 2: Optional Cloudflare Turnstile bot check
   await verifyTurnstileToken(env, body.turnstileToken, clientIp, fetchImpl);
 
-  // Layer 3: Constant-time invite code verification BEFORE calling Firebase
-  const validInvite = await verifyInviteCodeConstantTime(
+  // Layer 3: Validate invite code (one-time KV or legacy static) BEFORE calling Firebase
+  const resolvedInvite = await validateInviteCodeForJoin(
     body.inviteCode,
-    env.INVITE_CODES
+    env,
+    now
   );
-  if (!validInvite) {
-    throw new HttpError(
-      403,
-      "invalid_invite_code",
-      "Invalid invitation code. Access to RoboVolunteers is invite-only."
-    );
-  }
 
   // Layer 4: Cryptographically verify caller's Firebase ID Token (RS256 JWKS)
   const serviceAccount = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -489,13 +535,241 @@ async function handleClaimInvite(
     Math.floor(now.getTime() / 1000)
   );
 
-  // Layer 5: Stamp persistent `inviteVerified: true` onto caller's Firebase Auth UID
-  await grantInviteVerifiedByUid(serviceAccount, verified.uid, fetchImpl);
+  // If caller already holds inviteVerified, return immediately without burning a one-time code
+  if (verified.inviteVerified) {
+    return {
+      ok: true,
+      uid: verified.uid,
+      email: verified.email,
+    };
+  }
+
+  const existingClaims: Record<string, unknown> = verified.isAdminClaim
+    ? { admin: true }
+    : {};
+
+  // Layer 5: Consume one-time invite (with rollback on Firebase error) & stamp `inviteVerified: true`
+  if (resolvedInvite.kind === "one_time") {
+    const previousInvite = await consumeOneTimeInviteByHash(
+      env.AUTH_OTP_KV,
+      resolvedInvite.codeHash,
+      { uid: verified.uid, email: verified.email },
+      now
+    );
+    try {
+      await grantInviteVerifiedByUid(
+        serviceAccount,
+        verified.uid,
+        fetchImpl,
+        existingClaims
+      );
+    } catch (err) {
+      await saveInviteRecord(env.AUTH_OTP_KV, previousInvite);
+      throw err;
+    }
+  } else {
+    await grantInviteVerifiedByUid(
+      serviceAccount,
+      verified.uid,
+      fetchImpl,
+      existingClaims
+    );
+  }
 
   return {
     ok: true,
     uid: verified.uid,
     email: verified.email,
+  };
+}
+
+function getClientIp(request: Request): string {
+  return (
+    request.headers.get("CF-Connecting-IP") ??
+    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
+    "unknown-ip"
+  );
+}
+
+function extractBearerToken(request: Request, fallbackBodyToken?: string): string {
+  const authHeader = request.headers.get("Authorization") ?? "";
+  const bearerToken = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  return (bearerToken || fallbackBodyToken || "").trim();
+}
+
+async function isVerifiedAdmin(
+  verified: VerifiedFirebaseToken,
+  env: Env
+): Promise<boolean> {
+  if (!verified.inviteVerified) {
+    return false;
+  }
+  if (verified.isAdminClaim) {
+    return true;
+  }
+  if (!verified.emailVerified || !verified.email) {
+    return false;
+  }
+  return isEmailInAllowlist(verified.email, env.ADMIN_EMAILS);
+}
+
+async function authenticateAdminRequest(
+  request: Request,
+  env: Env,
+  deps: WorkerDeps,
+  enforceRateLimit: boolean
+): Promise<{ uid: string; email: string }> {
+  if (!env.OTP_HMAC_SECRET) {
+    throw new HttpError(
+      500,
+      "server_misconfigured",
+      "OTP_HMAC_SECRET is not configured."
+    );
+  }
+
+  const idToken = extractBearerToken(request);
+  if (!idToken) {
+    throw new HttpError(
+      401,
+      "missing_id_token",
+      "Missing Firebase authentication token."
+    );
+  }
+
+  const now = deps.now ? deps.now() : new Date();
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const serviceAccount = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const verified = await verifyFirebaseIdToken(
+    serviceAccount,
+    idToken,
+    fetchImpl,
+    Math.floor(now.getTime() / 1000)
+  );
+
+  const isAdmin = await isVerifiedAdmin(verified, env);
+  if (!isAdmin) {
+    throw new HttpError(
+      403,
+      "admin_required",
+      "Administrator access is required for this action."
+    );
+  }
+
+  if (enforceRateLimit) {
+    const ipHash = await hmacSha256Hex(
+      env.OTP_HMAC_SECRET,
+      `ip:${getClientIp(request)}`
+    );
+    await enforceAndRecordAdminIpLimit(env.AUTH_OTP_KV, ipHash, now);
+  }
+
+  return { uid: verified.uid, email: verified.email };
+}
+
+async function handleGetAuthMe(
+  request: Request,
+  env: Env,
+  deps: WorkerDeps
+): Promise<Record<string, unknown>> {
+  const idToken = extractBearerToken(request);
+  if (!idToken) {
+    throw new HttpError(
+      401,
+      "missing_id_token",
+      "Missing Firebase authentication token."
+    );
+  }
+
+  const now = deps.now ? deps.now() : new Date();
+  const fetchImpl = deps.fetchImpl ?? fetch;
+  const serviceAccount = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const verified = await verifyFirebaseIdToken(
+    serviceAccount,
+    idToken,
+    fetchImpl,
+    Math.floor(now.getTime() / 1000)
+  );
+
+  const isAdmin = await isVerifiedAdmin(verified, env);
+  return {
+    ok: true,
+    uid: verified.uid,
+    email: verified.email,
+    inviteVerified: verified.inviteVerified,
+    isAdmin,
+  };
+}
+
+async function handleAdminListInvites(
+  request: Request,
+  env: Env,
+  deps: WorkerDeps
+): Promise<Record<string, unknown>> {
+  await authenticateAdminRequest(request, env, deps, false);
+  const now = deps.now ? deps.now() : new Date();
+  const invites = await listOneTimeInvites(
+    env.AUTH_OTP_KV,
+    now,
+    getPublicAppUrl(env)
+  );
+  return {
+    ok: true,
+    invites,
+  };
+}
+
+async function handleAdminCreateInvites(
+  request: Request,
+  env: Env,
+  deps: WorkerDeps
+): Promise<Record<string, unknown>> {
+  const admin = await authenticateAdminRequest(request, env, deps, true);
+  let body: Partial<CreateInviteBody> = {};
+  const rawBody = await request.text();
+  if (rawBody.trim().length > 0) {
+    try {
+      body = JSON.parse(rawBody) as Partial<CreateInviteBody>;
+    } catch {
+      throw new HttpError(400, "invalid_json", "Invalid JSON request body.");
+    }
+  }
+
+  const now = deps.now ? deps.now() : new Date();
+  const created = await createOneTimeInvites(
+    env.AUTH_OTP_KV,
+    env.OTP_HMAC_SECRET,
+    admin,
+    body,
+    now,
+    getPublicAppUrl(env)
+  );
+  return {
+    ok: true,
+    invite: created[0],
+    invites: created,
+  };
+}
+
+async function handleAdminRevokeInvite(
+  request: Request,
+  env: Env,
+  deps: WorkerDeps,
+  inviteId: string
+): Promise<Record<string, unknown>> {
+  const admin = await authenticateAdminRequest(request, env, deps, true);
+  const now = deps.now ? deps.now() : new Date();
+  const invite = await revokeOneTimeInvite(
+    env.AUTH_OTP_KV,
+    inviteId,
+    admin,
+    now,
+    getPublicAppUrl(env)
+  );
+  return {
+    ok: true,
+    invite,
   };
 }
 
@@ -525,6 +799,41 @@ export async function handleWorkerRequest(
 
     if (request.method === "POST" && url.pathname === "/api/auth/claim-invite") {
       const result = await handleClaimInvite(request, env, deps);
+      return jsonResponse(200, result, corsHeaders);
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/auth/me") {
+      const result = await handleGetAuthMe(request, env, deps);
+      return jsonResponse(200, result, corsHeaders);
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/admin/invites") {
+      const result = await handleAdminListInvites(request, env, deps);
+      return jsonResponse(200, result, corsHeaders);
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/admin/invites") {
+      const result = await handleAdminCreateInvites(request, env, deps);
+      return jsonResponse(201, result, corsHeaders);
+    }
+
+    const revokePostMatch =
+      request.method === "POST"
+        ? url.pathname.match(/^\/api\/admin\/invites\/([^/]+)\/revoke$/)
+        : null;
+    const revokeDeleteMatch =
+      request.method === "DELETE"
+        ? url.pathname.match(/^\/api\/admin\/invites\/([^/]+)$/)
+        : null;
+    const revokeMatch = revokePostMatch ?? revokeDeleteMatch;
+    if (revokeMatch) {
+      let inviteId = revokeMatch[1];
+      try {
+        inviteId = decodeURIComponent(inviteId);
+      } catch {
+        throw new HttpError(400, "invalid_invite_id", "Invalid invite ID.");
+      }
+      const result = await handleAdminRevokeInvite(request, env, deps, inviteId);
       return jsonResponse(200, result, corsHeaders);
     }
 

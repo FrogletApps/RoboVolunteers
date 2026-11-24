@@ -5,10 +5,19 @@ import {
   clearCachedGoogleOAuthTokenForTests,
   FIREBASE_SECURETOKEN_JWKS_URL,
 } from "../src/firebaseAdmin.ts";
-import type { Env, KvStore, OutboundEmailPayload } from "../src/types.ts";
+import type {
+  AdminInviteResponseItem,
+  Env,
+  KvListResult,
+  KvStore,
+  OutboundEmailPayload,
+} from "../src/types.ts";
 
 class MemoryKv implements KvStore {
-  private store = new Map<string, { value: string; expiresAtMs?: number }>();
+  private store = new Map<
+    string,
+    { value: string; expiresAtMs?: number; metadata?: Record<string, unknown> }
+  >();
   public nowMs: () => number;
 
   constructor(nowMs: () => number) {
@@ -28,16 +37,58 @@ class MemoryKv implements KvStore {
   async put(
     key: string,
     value: string,
-    options?: { expirationTtl?: number }
+    options?: { expirationTtl?: number; metadata?: Record<string, unknown> }
   ): Promise<void> {
     const expiresAtMs = options?.expirationTtl
       ? this.nowMs() + options.expirationTtl * 1000
       : undefined;
-    this.store.set(key, { value, expiresAtMs });
+    this.store.set(key, {
+      value,
+      expiresAtMs,
+      metadata: options?.metadata,
+    });
   }
 
   async delete(key: string): Promise<void> {
     this.store.delete(key);
+  }
+
+  async list(options?: {
+    prefix?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<KvListResult> {
+    const prefix = options?.prefix ?? "";
+    const limit = options?.limit ?? 1000;
+    const keys: Array<{ name: string; expiration?: number; metadata?: unknown }> =
+      [];
+
+    for (const [name, item] of this.store.entries()) {
+      if (item.expiresAtMs !== undefined && this.nowMs() >= item.expiresAtMs) {
+        this.store.delete(name);
+        continue;
+      }
+      if (!name.startsWith(prefix)) continue;
+      keys.push({
+        name,
+        ...(item.expiresAtMs
+          ? { expiration: Math.floor(item.expiresAtMs / 1000) }
+          : {}),
+        ...(item.metadata !== undefined ? { metadata: item.metadata } : {}),
+      });
+    }
+
+    keys.sort((a, b) => a.name.localeCompare(b.name));
+    const offset = options?.cursor ? Number.parseInt(options.cursor, 10) || 0 : 0;
+    const page = keys.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+    const list_complete = nextOffset >= keys.length;
+
+    return {
+      keys: page,
+      list_complete,
+      ...(list_complete ? {} : { cursor: String(nextOffset) }),
+    };
   }
 }
 
@@ -835,5 +886,608 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
 
     assert.equal(retryRes.status, 200);
     assert.equal(sentEmails.length, 1);
+  });
+
+  it("reports admin status accurately via GET /api/auth/me and blocks non-admins from admin invite endpoints", async () => {
+    const env = createEnv({
+      ADMIN_EMAILS: "Lead.Admin@example.co.uk, second.admin@example.org",
+    });
+    const deps = {
+      fetchImpl: createMockFetch(),
+      now: () => new Date(currentTimeMs),
+    };
+
+    const adminByEmailToken = await mintMockFirebaseIdToken({
+      sub: "admin-uid-1",
+      email: "lead.admin@example.co.uk",
+      email_verified: true,
+      inviteVerified: true,
+    });
+    const adminByClaimToken = await mintMockFirebaseIdToken({
+      sub: "admin-uid-2",
+      email: "claim-admin@example.org",
+      email_verified: true,
+      inviteVerified: true,
+      admin: true,
+    });
+    const unverifiedEmailToken = await mintMockFirebaseIdToken({
+      sub: "spoof-uid",
+      email: "lead.admin@example.co.uk",
+      email_verified: false,
+      inviteVerified: true,
+    });
+    const regularVolunteerToken = await mintMockFirebaseIdToken({
+      sub: "vol-uid-99",
+      email: "regular.vol@example.org",
+      email_verified: true,
+      inviteVerified: true,
+    });
+
+    // Missing token -> 401
+    const noAuthRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/me", { method: "GET" }),
+      env,
+      deps
+    );
+    assert.equal(noAuthRes.status, 401);
+
+    // Email in ADMIN_EMAILS -> isAdmin: true
+    const adminMeRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/me", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${adminByEmailToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(adminMeRes.status, 200);
+    const adminMe = (await adminMeRes.json()) as { isAdmin: boolean; uid: string };
+    assert.equal(adminMe.isAdmin, true);
+    assert.equal(adminMe.uid, "admin-uid-1");
+
+    // Firebase custom claim admin: true -> isAdmin: true
+    const claimMeRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/me", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${adminByClaimToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(claimMeRes.status, 200);
+    assert.equal(((await claimMeRes.json()) as { isAdmin: boolean }).isAdmin, true);
+
+    // Unverified email matching ADMIN_EMAILS -> MUST NOT be admin
+    const spoofMeRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/me", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${unverifiedEmailToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(spoofMeRes.status, 200);
+    assert.equal(((await spoofMeRes.json()) as { isAdmin: boolean }).isAdmin, false);
+
+    // Regular volunteer -> isAdmin: false and 403 on all /api/admin/invites endpoints
+    const volMeRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/me", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${regularVolunteerToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(volMeRes.status, 200);
+    assert.equal(((await volMeRes.json()) as { isAdmin: boolean }).isAdmin, false);
+
+    const listForbidden = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${regularVolunteerToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(listForbidden.status, 403);
+
+    const createForbidden = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${regularVolunteerToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "Unauthorized" }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(createForbidden.status, 403);
+  });
+
+  it("generates single-use invite codes with shareable hyperlinks and enforces single-use redemption across Email OTP (including concurrent request race)", async () => {
+    const env = createEnv({
+      INVITE_CODES: "", // Verify one-time codes work without any static INVITE_CODES
+      ADMIN_EMAILS: "admin@robovolunteers.link",
+      PUBLIC_APP_URL: "https://robovolunteers.link",
+    });
+    const deps = {
+      fetchImpl: createMockFetch(),
+      now: () => new Date(currentTimeMs),
+    };
+
+    const adminToken = await mintMockFirebaseIdToken({
+      sub: "admin-1",
+      email: "admin@robovolunteers.link",
+      email_verified: true,
+      inviteVerified: true,
+    });
+
+    // 1. Admin creates a one-time invite
+    const createRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "198.51.100.1",
+        },
+        body: JSON.stringify({
+          label: "Alice Ref - Midlands",
+          expiresInDays: 14,
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(createRes.status, 201);
+    const createdPayload = (await createRes.json()) as {
+      ok: boolean;
+      invite: AdminInviteResponseItem;
+      invites: AdminInviteResponseItem[];
+    };
+    assert.equal(createdPayload.ok, true);
+    assert.equal(createdPayload.invites.length, 1);
+
+    const invite = createdPayload.invite;
+    assert.match(invite.code ?? "", /^RV-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    assert.equal(
+      invite.inviteUrl,
+      `https://robovolunteers.link/?invite=${invite.code}`
+    );
+    assert.equal(invite.status, "active");
+    assert.equal(invite.label, "Alice Ref - Midlands");
+
+    // 2. Volunteer A requests OTP with the one-time invite code (lowercase input normalized)
+    const reqA = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/request-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.101",
+        },
+        body: JSON.stringify({
+          mode: "join",
+          email: "alice@example.co.uk",
+          inviteCode: invite.code!.toLowerCase(),
+          turnstileToken: "valid-turnstile",
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(reqA.status, 200);
+    const otpA = extractOtpFromLastEmail();
+
+    // 3. Before Alice verifies, Alice can resend after cooldown (code not prematurely burned)
+    currentTimeMs += 65_000;
+    const resendA = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/request-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.101",
+        },
+        body: JSON.stringify({
+          mode: "join",
+          email: "alice@example.co.uk",
+          inviteCode: invite.code!,
+          turnstileToken: "valid-turnstile",
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(resendA.status, 200);
+    const latestOtpA = extractOtpFromLastEmail();
+    assert.notEqual(otpA, "");
+
+    // 4. Simulate concurrent user B also requesting OTP with the same code before A finishes
+    const reqB = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/request-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.102",
+        },
+        body: JSON.stringify({
+          mode: "join",
+          email: "bob@example.co.uk",
+          inviteCode: invite.code!,
+          turnstileToken: "valid-turnstile",
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(reqB.status, 200);
+    const otpB = extractOtpFromLastEmail();
+
+    // 5. Alice verifies first -> succeeds and consumes the one-time invite
+    const verifyA = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.101",
+        },
+        body: JSON.stringify({
+          email: "alice@example.co.uk",
+          code: latestOtpA,
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(verifyA.status, 200);
+    assert.equal(registeredFirebaseUsers.has("alice@example.co.uk"), true);
+
+    // 6. Bob tries to verify with the already-consumed invite -> blocked with 403 invite_code_used
+    const verifyB = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/verify-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.102",
+        },
+        body: JSON.stringify({
+          email: "bob@example.co.uk",
+          code: otpB,
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(verifyB.status, 403);
+    const verifyBJson = (await verifyB.json()) as { error: string };
+    assert.equal(verifyBJson.error, "invite_code_used");
+    assert.equal(registeredFirebaseUsers.has("bob@example.co.uk"), false);
+
+    // 7. Subsequent request-otp with the used code is also rejected BEFORE sending email
+    const emailsBefore = sentEmails.length;
+    const reuseReq = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/request-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.103",
+        },
+        body: JSON.stringify({
+          mode: "join",
+          email: "charlie@example.co.uk",
+          inviteCode: invite.code!,
+          turnstileToken: "valid-turnstile",
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(reuseReq.status, 403);
+    assert.equal(((await reuseReq.json()) as { error: string }).error, "invite_code_used");
+    assert.equal(sentEmails.length, emailsBefore);
+
+    // 8. Admin lists invites -> sees status "used", redeemer email, and scrubbed code/URL
+    const listRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(listRes.status, 200);
+    const listed = (await listRes.json()) as { invites: AdminInviteResponseItem[] };
+    assert.equal(listed.invites.length, 1);
+    assert.equal(listed.invites[0].status, "used");
+    assert.equal(listed.invites[0].usedByEmail, "alice@example.co.uk");
+    assert.equal(listed.invites[0].usedByUid, "uid-1");
+    assert.equal(listed.invites[0].code, null);
+    assert.equal(listed.invites[0].inviteUrl, null);
+
+    // 9. Trying to revoke an already-used invite returns 409
+    const revokeUsed = await handleWorkerRequest(
+      new Request(`https://roboref.app/api/admin/invites/${invite.id}/revoke`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(revokeUsed.status, 409);
+  });
+
+  it("enforces single-use one-time invites for Google Sign-In (/api/auth/claim-invite), supports batch generation, revocation, and expiry", async () => {
+    const env = createEnv({
+      INVITE_CODES: "",
+      ADMIN_EMAILS: "admin@robovolunteers.link",
+      REQUIRE_TURNSTILE: "false",
+    });
+    const deps = {
+      fetchImpl: createMockFetch(),
+      now: () => new Date(currentTimeMs),
+    };
+
+    const adminToken = await mintMockFirebaseIdToken({
+      sub: "admin-1",
+      email: "admin@robovolunteers.link",
+      email_verified: true,
+      inviteVerified: true,
+    });
+
+    // Generate batch of 3 invites expiring in 7 days
+    const batchRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          label: "UK Nationals Crew",
+          count: 3,
+          expiresInDays: 7,
+        }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(batchRes.status, 201);
+    const { invites } = (await batchRes.json()) as {
+      invites: AdminInviteResponseItem[];
+    };
+    assert.equal(invites.length, 3);
+    assert.equal(invites[0].label, "UK Nationals Crew (1/3)");
+    assert.equal(invites[2].label, "UK Nationals Crew (3/3)");
+    assert.equal(new Set(invites.map((i) => i.code)).size, 3);
+
+    // Invite #1: Claimed by Google volunteer 1, then rejected for Google volunteer 2
+    registeredFirebaseUsers.set("g1@example.org", {
+      uid: "g-uid-1",
+      emailVerified: true,
+      inviteVerified: false,
+    });
+    registeredFirebaseUsers.set("g2@example.org", {
+      uid: "g-uid-2",
+      emailVerified: true,
+      inviteVerified: false,
+    });
+    const g1Token = await mintMockFirebaseIdToken({
+      sub: "g-uid-1",
+      email: "g1@example.org",
+    });
+    const g2Token = await mintMockFirebaseIdToken({
+      sub: "g-uid-2",
+      email: "g2@example.org",
+    });
+
+    const claim1 = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/claim-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${g1Token}`,
+          "CF-Connecting-IP": "198.51.100.10",
+        },
+        body: JSON.stringify({ inviteCode: invites[0].code }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(claim1.status, 200);
+    assert.equal(registeredFirebaseUsers.get("g1@example.org")?.inviteVerified, true);
+
+    const claim2 = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/claim-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${g2Token}`,
+          "CF-Connecting-IP": "198.51.100.11",
+        },
+        body: JSON.stringify({ inviteCode: invites[0].code }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(claim2.status, 403);
+    assert.equal(((await claim2.json()) as { error: string }).error, "invite_code_used");
+    assert.equal(registeredFirebaseUsers.get("g2@example.org")?.inviteVerified, false);
+
+    // Invite #2: Admin revokes it -> rejected with invite_code_revoked
+    const revokeRes = await handleWorkerRequest(
+      new Request(`https://roboref.app/api/admin/invites/${invites[1].id}/revoke`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(revokeRes.status, 200);
+    const revokedPayload = (await revokeRes.json()) as {
+      invite: AdminInviteResponseItem;
+    };
+    assert.equal(revokedPayload.invite.status, "revoked");
+    assert.equal(revokedPayload.invite.code, null);
+
+    const claimRevoked = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/claim-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${g2Token}`,
+          "CF-Connecting-IP": "198.51.100.12",
+        },
+        body: JSON.stringify({ inviteCode: invites[1].code }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(claimRevoked.status, 403);
+    assert.equal(
+      ((await claimRevoked.json()) as { error: string }).error,
+      "invite_code_revoked"
+    );
+
+    // Invite #3: Advance 8 days -> expires -> rejected with invite_code_expired
+    currentTimeMs += 8 * 86_400_000;
+    const freshG2Token = await mintMockFirebaseIdToken({
+      sub: "g-uid-2",
+      email: "g2@example.org",
+    });
+    const claimExpired = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/claim-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${freshG2Token}`,
+          "CF-Connecting-IP": "198.51.100.13",
+        },
+        body: JSON.stringify({ inviteCode: invites[2].code }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(claimExpired.status, 403);
+    assert.equal(
+      ((await claimExpired.json()) as { error: string }).error,
+      "invite_code_expired"
+    );
+
+    // Admin list shows #3 as expired with scrubbed code
+    const freshAdminToken = await mintMockFirebaseIdToken({
+      sub: "admin-1",
+      email: "admin@robovolunteers.link",
+      email_verified: true,
+      inviteVerified: true,
+    });
+    const listAfterExpiry = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${freshAdminToken}` },
+      }),
+      env,
+      deps
+    );
+    assert.equal(listAfterExpiry.status, 200);
+    const listed = (await listAfterExpiry.json()) as {
+      invites: AdminInviteResponseItem[];
+    };
+    const thirdItem = listed.invites.find((i) => i.id === invites[2].id);
+    assert.equal(thirdItem?.status, "expired");
+    assert.equal(thirdItem?.code, null);
+    assert.equal(thirdItem?.inviteUrl, null);
+  });
+
+  it("rolls back one-time invite consumption if Firebase claims update fails transiently", async () => {
+    const env = createEnv({
+      INVITE_CODES: "",
+      ADMIN_EMAILS: "admin@robovolunteers.link",
+      REQUIRE_TURNSTILE: "false",
+    });
+    const baseFetch = createMockFetch();
+    let failFirebaseUpdate = true;
+    const flakyFetch: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (failFirebaseUpdate && url.endsWith("/accounts:update")) {
+        return new Response("Upstream error", { status: 500 });
+      }
+      return baseFetch(input, init);
+    }) as typeof fetch;
+
+    const deps = {
+      fetchImpl: flakyFetch,
+      now: () => new Date(currentTimeMs),
+    };
+
+    const adminToken = await mintMockFirebaseIdToken({
+      sub: "admin-1",
+      email: "admin@robovolunteers.link",
+      email_verified: true,
+      inviteVerified: true,
+    });
+
+    const createRes = await handleWorkerRequest(
+      new Request("https://roboref.app/api/admin/invites", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "Retryable Invite" }),
+      }),
+      env,
+      deps
+    );
+    const { invite } = (await createRes.json()) as {
+      invite: AdminInviteResponseItem;
+    };
+
+    registeredFirebaseUsers.set("flaky@example.org", {
+      uid: "g-flaky",
+      emailVerified: true,
+      inviteVerified: false,
+    });
+    const gToken = await mintMockFirebaseIdToken({
+      sub: "g-flaky",
+      email: "flaky@example.org",
+    });
+
+    // First attempt fails at Firebase -> 502, invite must be rolled back to active
+    const failedClaim = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/claim-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${gToken}`,
+          "CF-Connecting-IP": "198.51.100.20",
+        },
+        body: JSON.stringify({ inviteCode: invite.code }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(failedClaim.status, 502);
+
+    // Second attempt succeeds with the exact same one-time code!
+    failFirebaseUpdate = false;
+    const retryClaim = await handleWorkerRequest(
+      new Request("https://roboref.app/api/auth/claim-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${gToken}`,
+          "CF-Connecting-IP": "198.51.100.20",
+        },
+        body: JSON.stringify({ inviteCode: invite.code }),
+      }),
+      env,
+      deps
+    );
+    assert.equal(retryClaim.status, 200);
+    assert.equal(
+      registeredFirebaseUsers.get("flaky@example.org")?.inviteVerified,
+      true
+    );
   });
 });

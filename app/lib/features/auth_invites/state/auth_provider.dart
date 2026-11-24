@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/invite_link_utils.dart';
 import '../../profile/models/volunteer_model.dart';
 import '../services/auth_service.dart';
 import '../services/otp_auth_api_client.dart';
@@ -58,6 +59,43 @@ final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(apiClient: apiClient, backend: backend);
 });
 
+class PendingInviteCodeNotifier extends Notifier<String?> {
+  static String? _readDefaultRouteName() {
+    try {
+      return PlatformDispatcher.instance.defaultRouteName;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  String? build() {
+    return InviteLinkUtils.extractInitialInviteCode(
+      defaultRouteName: _readDefaultRouteName(),
+    );
+  }
+
+  void setCode(String? rawCode) {
+    if (rawCode == null || rawCode.trim().isEmpty) {
+      state = null;
+      return;
+    }
+    final normalized = InviteLinkUtils.normalizeInviteCode(rawCode);
+    state = InviteLinkUtils.isValidInviteCodeFormat(normalized)
+        ? normalized
+        : null;
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
+final pendingInviteCodeProvider =
+    NotifierProvider<PendingInviteCodeNotifier, String?>(
+  PendingInviteCodeNotifier.new,
+);
+
 class AuthController extends Notifier<AuthGateState> {
   late AuthService _authService;
   StreamSubscription<AuthSession?>? _subscription;
@@ -92,20 +130,31 @@ class AuthController extends Notifier<AuthGateState> {
     }
 
     try {
-      final profile = await _authService.fetchCurrentVolunteerProfile(session);
+      final results = await Future.wait<Object?>([
+        _authService.fetchCurrentVolunteerProfile(session),
+        _authService.resolveAdminStatus(session),
+      ]);
       if (!ref.mounted || generation != _sessionGeneration) return;
 
+      final profile = results[0] as VolunteerModel?;
+      final isAdmin = (results[1] as bool?) ?? session.isAdmin;
+      final resolvedSession = session.copyWith(isAdmin: isAdmin);
+
+      ref.read(pendingInviteCodeProvider.notifier).clear();
+
       if (profile == null) {
-        state = AuthGateState.needsOnboarding(session);
+        state = AuthGateState.needsOnboarding(resolvedSession);
       } else {
         state = AuthGateState.authenticated(
-          session: session,
+          session: resolvedSession,
           volunteer: profile.withDisabledPrivacyAndEpSettings(),
         );
       }
     } catch (_) {
       if (!ref.mounted || generation != _sessionGeneration) return;
-      state = AuthGateState.needsOnboarding(session);
+      final isAdmin = await _authService.resolveAdminStatus(session);
+      if (!ref.mounted || generation != _sessionGeneration) return;
+      state = AuthGateState.needsOnboarding(session.copyWith(isAdmin: isAdmin));
     }
   }
 
@@ -205,6 +254,12 @@ final authControllerProvider =
 final currentVolunteerProvider = Provider<VolunteerModel?>((ref) {
   final gate = ref.watch(authControllerProvider);
   return gate.volunteer;
+});
+
+/// Whether the currently authenticated user has administrator privileges.
+final isAdminProvider = Provider<bool>((ref) {
+  final gate = ref.watch(authControllerProvider);
+  return gate.session?.isAdmin ?? false;
 });
 
 /// Locked off (`false`) in v1 since all users are volunteers.

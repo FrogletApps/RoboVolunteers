@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/roles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../admin/screens/admin_portal_screen.dart';
 import '../../auth_invites/state/auth_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -76,6 +77,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentVolunteerProvider);
+    final isAdmin = ref.watch(isAdminProvider);
     if (user == null) {
       return const Scaffold(
         body: Center(child: Text('No active volunteer session')),
@@ -181,6 +183,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                       ),
                                     ),
                                   ),
+                                  if (isAdmin) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.epVerifiedGold
+                                            .withValues(alpha: 0.16),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'Admin',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.epVerifiedGold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ],
@@ -190,6 +214,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                 ),
+                if (isAdmin) ...[
+                  const SizedBox(height: 16),
+                  Card(
+                    child: ListTile(
+                      key: const Key('profile_admin_portal_tile'),
+                      leading: const Icon(
+                        Icons.admin_panel_settings_outlined,
+                        color: AppTheme.brandGreen,
+                      ),
+                      title: const Text(
+                        'Admin Portal',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: const Text(
+                        'Generate one-time volunteer invite codes & shareable links',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const AdminPortalScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
 
                 // Personal Info Card

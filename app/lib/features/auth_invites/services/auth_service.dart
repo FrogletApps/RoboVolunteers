@@ -11,13 +11,31 @@ class AuthSession {
   final String email;
   final String? displayName;
   final bool inviteVerified;
+  final bool isAdmin;
 
   const AuthSession({
     required this.uid,
     required this.email,
     this.displayName,
     this.inviteVerified = true,
+    this.isAdmin = false,
   });
+
+  AuthSession copyWith({
+    String? uid,
+    String? email,
+    String? displayName,
+    bool? inviteVerified,
+    bool? isAdmin,
+  }) {
+    return AuthSession(
+      uid: uid ?? this.uid,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      inviteVerified: inviteVerified ?? this.inviteVerified,
+      isAdmin: isAdmin ?? this.isAdmin,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -27,10 +45,12 @@ class AuthSession {
           uid == other.uid &&
           email == other.email &&
           displayName == other.displayName &&
-          inviteVerified == other.inviteVerified;
+          inviteVerified == other.inviteVerified &&
+          isAdmin == other.isAdmin;
 
   @override
-  int get hashCode => Object.hash(uid, email, displayName, inviteVerified);
+  int get hashCode =>
+      Object.hash(uid, email, displayName, inviteVerified, isAdmin);
 }
 
 @immutable
@@ -58,6 +78,8 @@ abstract class AuthBackend {
   Future<GoogleAuthResult> signInWithGoogle();
 
   Future<AuthSession> refreshInviteClaims();
+
+  Future<String?> getIdToken({bool forceRefresh = false});
 
   Future<VolunteerModel?> fetchVolunteerProfile(AuthSession session);
 
@@ -90,6 +112,7 @@ class FirebaseAuthBackend implements AuthBackend {
     if (user == null) return null;
     final tokenResult = await user.getIdTokenResult(forceRefresh);
     final inviteVerified = tokenResult.claims?['inviteVerified'] == true;
+    final isAdmin = tokenResult.claims?['admin'] == true;
     final cleanDisplayName = user.displayName?.trim();
     return AuthSession(
       uid: user.uid,
@@ -98,6 +121,7 @@ class FirebaseAuthBackend implements AuthBackend {
           ? cleanDisplayName
           : null,
       inviteVerified: inviteVerified,
+      isAdmin: isAdmin,
     );
   }
 
@@ -218,6 +242,7 @@ class FirebaseAuthBackend implements AuthBackend {
       final tokenResult = await user.getIdTokenResult(false);
       final idToken = tokenResult.token ?? await user.getIdToken() ?? '';
       final inviteVerified = tokenResult.claims?['inviteVerified'] == true;
+      final isAdmin = tokenResult.claims?['admin'] == true;
       final cleanDisplayName = user.displayName?.trim();
 
       final session = AuthSession(
@@ -227,6 +252,7 @@ class FirebaseAuthBackend implements AuthBackend {
             ? cleanDisplayName
             : null,
         inviteVerified: inviteVerified,
+        isAdmin: isAdmin,
       );
       _lastKnownSession = session;
 
@@ -250,6 +276,11 @@ class FirebaseAuthBackend implements AuthBackend {
     }
     _lastKnownSession = session;
     return session;
+  }
+
+  @override
+  Future<String?> getIdToken({bool forceRefresh = false}) async {
+    return _firebaseAuth.currentUser?.getIdToken(forceRefresh);
   }
 
   @override
@@ -326,7 +357,9 @@ class InMemoryAuthBackend implements AuthBackend {
   String mockGoogleEmail;
   String? mockGoogleDisplayName;
   bool mockGoogleInviteVerified;
+  bool mockGoogleIsAdmin;
   String mockGoogleIdToken;
+  String mockIdToken;
 
   InMemoryAuthBackend({
     AuthSession? initialSession,
@@ -335,7 +368,9 @@ class InMemoryAuthBackend implements AuthBackend {
     this.mockGoogleEmail = 'google.volunteer@example.co.uk',
     this.mockGoogleDisplayName = 'Google Volunteer',
     this.mockGoogleInviteVerified = false,
+    this.mockGoogleIsAdmin = false,
     this.mockGoogleIdToken = 'mock-google-firebase-id-token',
+    this.mockIdToken = 'mock-firebase-id-token',
   }) : _session = initialSession {
     if (initialSession != null && initialProfile != null) {
       final sanitized = initialProfile.withDisabledPrivacyAndEpSettings();
@@ -388,6 +423,7 @@ class InMemoryAuthBackend implements AuthBackend {
       email: mockGoogleEmail.trim().toLowerCase(),
       displayName: mockGoogleDisplayName,
       inviteVerified: mockGoogleInviteVerified,
+      isAdmin: mockGoogleIsAdmin,
     );
     _session = session;
     _controller.add(session);
@@ -403,15 +439,15 @@ class InMemoryAuthBackend implements AuthBackend {
       );
     }
     mockGoogleInviteVerified = true;
-    final updated = AuthSession(
-      uid: _session!.uid,
-      email: _session!.email,
-      displayName: _session!.displayName,
-      inviteVerified: true,
-    );
+    final updated = _session!.copyWith(inviteVerified: true);
     _session = updated;
     _controller.add(updated);
     return updated;
+  }
+
+  @override
+  Future<String?> getIdToken({bool forceRefresh = false}) async {
+    return _session != null ? mockIdToken : null;
   }
 
   @override
@@ -483,6 +519,26 @@ class AuthService {
 
   Future<VolunteerModel?> fetchCurrentVolunteerProfile(AuthSession session) {
     return _backend.fetchVolunteerProfile(session);
+  }
+
+  Future<String?> getIdToken({bool forceRefresh = false}) {
+    return _backend.getIdToken(forceRefresh: forceRefresh);
+  }
+
+  /// Resolves administrator status from the Cloudflare Worker (`/api/auth/me`),
+  /// gracefully falling back to [session.isAdmin] if offline or unavailable.
+  Future<bool> resolveAdminStatus(AuthSession session) async {
+    if (!session.inviteVerified) return false;
+    try {
+      final idToken = await _backend.getIdToken();
+      if (idToken == null || idToken.trim().isEmpty) {
+        return session.isAdmin;
+      }
+      final status = await _apiClient.fetchAuthStatus(idToken: idToken);
+      return status.isAdmin;
+    } catch (_) {
+      return session.isAdmin;
+    }
   }
 
   static String normalizeAndValidateEmail(String rawEmail) {

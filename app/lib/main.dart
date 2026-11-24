@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/invite_link_utils.dart';
 import 'features/auth_invites/screens/login_screen.dart';
 import 'features/auth_invites/screens/signup_screen.dart';
 import 'features/auth_invites/state/auth_provider.dart';
@@ -40,6 +41,12 @@ class RoboVolunteersApp extends ConsumerWidget {
     this.firebaseReady = true,
   });
 
+  Widget _buildRootScreen({String? initialInviteCode}) {
+    return firebaseReady
+        ? _AuthGateRouter(initialInviteCode: initialInviteCode)
+        : const _FirebaseSetupRequiredScreen();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
@@ -48,15 +55,32 @@ class RoboVolunteersApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: firebaseReady
-          ? const _AuthGateRouter()
-          : const _FirebaseSetupRequiredScreen(),
+      home: _buildRootScreen(),
+      onGenerateRoute: (settings) {
+        final inviteCode = settings.name != null
+            ? InviteLinkUtils.extractInitialInviteCode(
+                defaultRouteName: settings.name,
+              )
+            : null;
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => _buildRootScreen(initialInviteCode: inviteCode),
+        );
+      },
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => _buildRootScreen(),
+        );
+      },
     );
   }
 }
 
 class _AuthGateRouter extends ConsumerWidget {
-  const _AuthGateRouter();
+  final String? initialInviteCode;
+
+  const _AuthGateRouter({this.initialInviteCode});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -70,7 +94,7 @@ class _AuthGateRouter extends ConsumerWidget {
           ),
         );
       case AuthGateStatus.unauthenticated:
-        return const LoginScreen();
+        return LoginScreen(initialInviteCode: initialInviteCode);
       case AuthGateStatus.needsOnboarding:
         return SignupScreen(
           verifiedEmail: gate.session?.email ?? '',

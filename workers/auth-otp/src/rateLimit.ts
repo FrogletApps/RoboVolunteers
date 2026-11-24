@@ -107,6 +107,28 @@ export async function enforceAndRecordVerifyIpLimit(
 }
 
 /**
+ * Enforces per-IP throttling on admin endpoints (max 60 requests/minute).
+ */
+export async function enforceAndRecordAdminIpLimit(
+  kv: KvStore,
+  ipHash: string,
+  now: Date = new Date()
+): Promise<void> {
+  const { minuteBucket } = getUtcBuckets(now);
+  const key = `rl:admin:ip:min:${minuteBucket}:${ipHash}`;
+  const count = await readCounter(kv, key);
+  if (count >= 60) {
+    throw new HttpError(
+      429,
+      "rate_limit_admin_ip",
+      "Too many admin requests. Please wait a minute and try again.",
+      60
+    );
+  }
+  await kv.put(key, String(count + 1), { expirationTtl: 120 });
+}
+
+/**
  * Checks per-user cooldown (60s), per-user daily cap (12 emails/day), and
  * the global daily circuit breaker before sending an outbound OTP email.
  */

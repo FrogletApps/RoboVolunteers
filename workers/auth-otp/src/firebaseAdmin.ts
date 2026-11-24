@@ -13,6 +13,16 @@ export interface FirebaseUserSummary {
   email: string;
   emailVerified: boolean;
   inviteVerified: boolean;
+  isAdmin: boolean;
+  customClaims: Record<string, unknown>;
+}
+
+export interface VerifiedFirebaseToken {
+  uid: string;
+  email: string;
+  emailVerified: boolean;
+  inviteVerified: boolean;
+  isAdminClaim: boolean;
 }
 
 let cachedAccessToken: {
@@ -288,7 +298,7 @@ export async function verifyFirebaseIdToken(
   rawIdToken: string,
   fetchImpl: typeof fetch = fetch,
   nowSeconds: number = Math.floor(Date.now() / 1000)
-): Promise<{ uid: string; email: string }> {
+): Promise<VerifiedFirebaseToken> {
   const token = rawIdToken.trim();
   const segments = token.split(".");
   if (segments.length !== 3 || segments.some((s) => s.length === 0)) {
@@ -385,22 +395,31 @@ export async function verifyFirebaseIdToken(
 
   const email =
     typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
-  return { uid, email };
+  const emailVerified = payload.email_verified === true;
+  const inviteVerified = payload.inviteVerified === true;
+  const isAdminClaim = payload.admin === true;
+  return { uid, email, emailVerified, inviteVerified, isAdminClaim };
 }
 
 /**
  * Stamps persistent `{"inviteVerified": true}` custom claims onto an existing
- * Firebase Auth UID (e.g., after verifying an invite code for a Google user).
+ * Firebase Auth UID while preserving any existing custom claims (such as `admin: true`).
  */
 export async function grantInviteVerifiedByUid(
   sa: ServiceAccountCredentials,
   uid: string,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  existingClaims: Record<string, unknown> = {}
 ): Promise<void> {
   const accessToken = await getGoogleOAuthToken(sa, fetchImpl);
   const baseUrl = `https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(
     sa.project_id
   )}`;
+
+  const mergedClaims: Record<string, unknown> = {
+    ...existingClaims,
+    inviteVerified: true,
+  };
 
   const updateResp = await fetchImpl(`${baseUrl}/accounts:update`, {
     method: "POST",
@@ -411,7 +430,7 @@ export async function grantInviteVerifiedByUid(
     body: JSON.stringify({
       localId: uid,
       emailVerified: true,
-      customAttributes: JSON.stringify({ inviteVerified: true }),
+      customAttributes: JSON.stringify(mergedClaims),
     }),
   });
 
@@ -467,13 +486,15 @@ export async function lookupFirebaseUserByEmail(
   const user = data.users?.[0];
   if (!user) return null;
 
-  let inviteVerified = false;
+  let customClaims: Record<string, unknown> = {};
   if (user.customAttributes) {
     try {
-      const attrs = JSON.parse(user.customAttributes) as Record<string, unknown>;
-      inviteVerified = attrs.inviteVerified === true;
+      const attrs = JSON.parse(user.customAttributes) as unknown;
+      if (attrs && typeof attrs === "object" && !Array.isArray(attrs)) {
+        customClaims = attrs as Record<string, unknown>;
+      }
     } catch {
-      inviteVerified = false;
+      customClaims = {};
     }
   }
 
@@ -481,7 +502,9 @@ export async function lookupFirebaseUserByEmail(
     uid: user.localId,
     email: user.email,
     emailVerified: Boolean(user.emailVerified),
-    inviteVerified,
+    inviteVerified: customClaims.inviteVerified === true,
+    isAdmin: customClaims.admin === true,
+    customClaims,
   };
 }
 
@@ -493,9 +516,13 @@ export async function lookupFirebaseUserByEmail(
 export async function ensureVerifiedVolunteerUser(
   sa: ServiceAccountCredentials,
   email: string,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  preloadedUser?: FirebaseUserSummary | null
 ): Promise<string> {
-  const existing = await lookupFirebaseUserByEmail(sa, email, fetchImpl);
+  const existing =
+    preloadedUser !== undefined
+      ? preloadedUser
+      : await lookupFirebaseUserByEmail(sa, email, fetchImpl);
   const accessToken = await getGoogleOAuthToken(sa, fetchImpl);
   const baseUrl = `https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(
     sa.project_id
@@ -529,7 +556,12 @@ export async function ensureVerifiedVolunteerUser(
   }
 
   if (!existing || !existing.emailVerified || !existing.inviteVerified) {
-    await grantInviteVerifiedByUid(sa, uid, fetchImpl);
+    await grantInviteVerifiedByUid(
+      sa,
+      uid,
+      fetchImpl,
+      existing?.customClaims ?? {}
+    );
   }
 
   return uid;
