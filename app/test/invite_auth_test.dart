@@ -358,5 +358,48 @@ void main() {
       expect(mapped.message, contains('CODE_EXCHANGE'));
       expect(mapped.message, isNot(contains('malformed reponse')));
     });
+
+    test(
+        'Maps blocked HTTP referer FirebaseAuthException to actionable guidance',
+        () {
+      final mappedFromCode = FirebaseAuthBackend.mapFirebaseAuthException(
+        FirebaseAuthException(
+          code:
+              'requests-from-referer-https://robovolunteers.link-are-blocked.',
+          message: 'Error',
+        ),
+      );
+
+      expect(mappedFromCode.code, equals('referer_blocked'));
+      expect(mappedFromCode.message, contains('HTTP referrers'));
+
+      final mappedFromMessage = FirebaseAuthBackend.mapFirebaseAuthException(
+        FirebaseAuthException(
+          code: 'internal-error',
+          message:
+              'Requests from referer https://robovolunteers.link/ are blocked.',
+        ),
+      );
+
+      expect(mappedFromMessage.code, equals('referer_blocked'));
+      expect(mappedFromMessage.message, contains('HTTP referrers'));
+    });
+
+    test(
+        'Includes Firebase error code when web SDK returns generic "Error" message',
+        () {
+      final mapped = FirebaseAuthBackend.mapFirebaseAuthException(
+        FirebaseAuthException(
+          code: 'network-request-failed',
+          message: 'Error',
+        ),
+      );
+
+      expect(mapped.code, equals('network-request-failed'));
+      expect(
+        mapped.message,
+        equals('Google sign-in failed (network-request-failed). Please try again.'),
+      );
+    });
   });
 }

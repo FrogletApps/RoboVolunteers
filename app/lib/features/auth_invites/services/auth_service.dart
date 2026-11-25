@@ -170,32 +170,50 @@ class FirebaseAuthBackend implements AuthBackend {
   }
 
   /// Maps a [FirebaseAuthException] from Google Sign-In into a user-friendly
-  /// [AuthApiException], surfacing actionable guidance for `CODE_EXCHANGE` errors.
+  /// [AuthApiException], surfacing actionable guidance for `CODE_EXCHANGE` and
+  /// blocked HTTP referer errors and preserving `e.code` when the web SDK only
+  /// returns a generic `"Error"` message.
   static AuthApiException mapFirebaseAuthException(FirebaseAuthException e) {
-    if (e.code == 'popup-closed-by-user' ||
-        e.code == 'cancelled-popup-request' ||
-        e.code == 'web-context-canceled') {
+    final normalizedCode = e.code.trim().toLowerCase();
+    final rawMessage = e.message?.trim() ?? '';
+    final normalizedMessage = rawMessage.toLowerCase();
+
+    if (normalizedCode == 'popup-closed-by-user' ||
+        normalizedCode == 'cancelled-popup-request' ||
+        normalizedCode == 'web-context-canceled') {
       return const AuthApiException(
         code: 'google_signin_cancelled',
         message: 'Google sign-in was cancelled.',
       );
     }
-    if (e.code == 'popup-blocked') {
+    if (normalizedCode == 'popup-blocked') {
       return const AuthApiException(
         code: 'popup_blocked',
         message:
             'The Google sign-in popup was blocked by your browser. Please allow popups for this site and try again.',
       );
     }
-    if (e.code == 'unauthorized-domain') {
+    if (normalizedCode == 'unauthorized-domain') {
       return const AuthApiException(
         code: 'unauthorized_domain',
         message:
             'This domain is not authorized for Google Sign-In in Firebase Authentication -> Settings -> Authorized domains.',
       );
     }
+    if (normalizedCode.contains('requests-from-referer') ||
+        normalizedMessage.contains('requests-from-referer') ||
+        (normalizedMessage.contains('requests from referer') &&
+            normalizedMessage.contains('blocked'))) {
+      debugPrint(
+        'FirebaseAuth Google blocked referer error [${e.code}]: ${e.message}',
+      );
+      return const AuthApiException(
+        code: 'referer_blocked',
+        message:
+            'Google Sign-In is blocked for this domain by Firebase API key website restrictions. Add this domain to the allowed HTTP referrers in Google Cloud Console -> APIs & Services -> Credentials, or sign in with a 6-digit email code below.',
+      );
+    }
 
-    final normalizedMessage = (e.message ?? '').toLowerCase();
     if (normalizedMessage.contains('code_exchange') ||
         normalizedMessage.contains('malformed reponse') ||
         normalizedMessage.contains('malformed response') ||
@@ -208,9 +226,20 @@ class FirebaseAuthBackend implements AuthBackend {
       );
     }
 
+    debugPrint('FirebaseAuth Google sign-in error [${e.code}]: ${e.message}');
+    final isGenericErrorMessage = rawMessage.isEmpty ||
+        normalizedMessage == 'error' ||
+        normalizedMessage == 'firebase: error';
+    final cleanCode = e.code.trim();
+    final resolvedMessage = isGenericErrorMessage
+        ? (cleanCode.isNotEmpty
+            ? 'Google sign-in failed ($cleanCode). Please try again.'
+            : 'Google sign-in failed. Please try again.')
+        : rawMessage;
+
     return AuthApiException(
       code: e.code,
-      message: e.message ?? 'Google sign-in failed. Please try again.',
+      message: resolvedMessage,
     );
   }
 
