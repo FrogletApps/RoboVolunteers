@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:robovolunteers/core/constants/roles.dart';
+import 'package:robovolunteers/core/theme/app_theme.dart';
 import 'package:robovolunteers/core/utils/url_utils.dart';
 import 'package:robovolunteers/features/auth_invites/screens/signup_screen.dart';
 import 'package:robovolunteers/features/auth_invites/services/auth_service.dart';
@@ -11,6 +12,7 @@ import 'package:robovolunteers/features/auth_invites/services/otp_auth_api_clien
 import 'package:robovolunteers/features/auth_invites/state/auth_provider.dart';
 import 'package:robovolunteers/features/profile/models/volunteer_model.dart';
 import 'package:robovolunteers/features/profile/screens/profile_screen.dart';
+import 'package:robovolunteers/features/profile/widgets/role_preferences_selector.dart';
 import 'package:robovolunteers/features/volunteering/services/volunteer_repository.dart';
 import 'package:robovolunteers/features/volunteering/state/volunteering_provider.dart';
 import 'package:robovolunteers/features/volunteering/widgets/event_signup_dialog.dart';
@@ -52,6 +54,10 @@ void main() {
         equals(
           'https://library.globalrobotics.org/hc/en-us/articles/51905218620820-Volunteer-Roles-at-a-Local-Event',
         ),
+      );
+      expect(
+        UrlUtils.certificationCourseUrl,
+        equals('https://pd.vex.com/training/competition'),
       );
     });
   });
@@ -119,7 +125,7 @@ void main() {
 
   group('Dual Role Selectors & Event Signup Pre-Selection Widget Tests', () {
     testWidgets(
-        'ProfileScreen shows all roles, guide link, and dual Qualified / "I want to do this" selectors',
+        'ProfileScreen shows all roles, guide & certification links, and aligned Qualified / Favourite columns on the right',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1000, 2000);
       tester.view.devicePixelRatio = 1.0;
@@ -166,6 +172,24 @@ void main() {
         findsOneWidget,
       );
 
+      // Blurb uses "Favourite" with the original "Roles you prefer..." text,
+      // does not contain "I want to do this", and includes the certification reminder link
+      expect(find.textContaining('I want to do this'), findsNothing);
+      expect(
+        find.text(
+          '• Favourite: Roles you prefer — these will be pre-selected by default for each event.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('certification_course_link')), findsOneWidget);
+      expect(
+        find.text(
+          'Remember for Head Referee and Judge Advisor you must be qualified by doing the certification course found here: https://pd.vex.com/training/competition',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+
       // New roles including Emcee are rendered, while Other is per-event only
       expect(find.text('Emcee'), findsOneWidget);
       expect(find.text('Robot Inspector'), findsOneWidget);
@@ -175,7 +199,37 @@ void main() {
       expect(find.byKey(const Key('role_card_other')), findsNothing);
       expect(find.text('Other'), findsNothing);
 
-      // Selecting "I want to do this" on Emcee also selects "Qualified" on Emcee
+      // Verify Qualified and Favourite sit on the right of each role element and
+      // line up vertically as columns across all selectable roles
+      final selectableRoles =
+          VolunteerRole.values.where((r) => r != VolunteerRole.other).toList();
+      final firstQualifiedRect = tester.getRect(
+        find.byKey(Key('role_qualified_${selectableRoles.first.id}')),
+      );
+      final firstFavouriteRect = tester.getRect(
+        find.byKey(Key('role_wanted_${selectableRoles.first.id}')),
+      );
+      expect(firstFavouriteRect.left, greaterThan(firstQualifiedRect.right));
+
+      for (final role in selectableRoles) {
+        final labelRect = tester.getRect(find.text(role.label));
+        final qualifiedRect =
+            tester.getRect(find.byKey(Key('role_qualified_${role.id}')));
+        final favouriteRect =
+            tester.getRect(find.byKey(Key('role_wanted_${role.id}')));
+
+        // Both columns are to the right of the role label
+        expect(qualifiedRect.left, greaterThan(labelRect.right));
+        expect(favouriteRect.left, greaterThan(qualifiedRect.right));
+
+        // Columns align horizontally across every role card
+        expect(qualifiedRect.left, closeTo(firstQualifiedRect.left, 0.5));
+        expect(qualifiedRect.right, closeTo(firstQualifiedRect.right, 0.5));
+        expect(favouriteRect.left, closeTo(firstFavouriteRect.left, 0.5));
+        expect(favouriteRect.right, closeTo(firstFavouriteRect.right, 0.5));
+      }
+
+      // Selecting "Favourite" on Emcee also selects "Qualified" on Emcee
       final emceeWantedChip = find.byKey(const Key('role_wanted_emcee'));
       await tester.ensureVisible(emceeWantedChip);
       await tester.tap(emceeWantedChip);
@@ -190,7 +244,7 @@ void main() {
         isTrue,
       );
 
-      // Deselecting "Qualified" on ref also deselects "I want to do this" on ref
+      // Deselecting "Qualified" on ref also deselects "Favourite" on ref
       final refQualifiedChip = find.byKey(const Key('role_qualified_ref'));
       await tester.ensureVisible(refQualifiedChip);
       await tester.tap(refQualifiedChip);
@@ -223,7 +277,121 @@ void main() {
     });
 
     testWidgets(
-        'EventSignupDialog offers all roles as options, pre-selects preferred roles, and does not show "I want to do this"',
+        'ProfileScreen role columns render without overflow on narrow mobile screens',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(360, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const session = AuthSession(
+        uid: 'vol-mobile-1',
+        email: 'mobile@example.org',
+      );
+      const profile = VolunteerModel(
+        id: 'vol-mobile-1',
+        name: 'Mobile Volunteer',
+        email: 'mobile@example.org',
+        qualifications: ['head_ref'],
+        preferredRoles: ['head_ref'],
+        forwardingAddress: 'vol-mob1000@volunteer.roboref.app',
+      );
+
+      final authBackend = InMemoryAuthBackend(
+        initialSession: session,
+        initialProfile: profile,
+      );
+      addTearDown(authBackend.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authBackendProvider.overrideWithValue(authBackend),
+            otpAuthApiClientProvider.overrideWithValue(
+              OtpAuthApiClient(
+                httpClient: MockClient((_) async => http.Response('Offline', 503)),
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: ProfileScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<FilterChip>(find.byKey(const Key('role_qualified_head_ref'))).selected,
+        isTrue,
+      );
+      final headRefQ = tester.getRect(find.byKey(const Key('role_qualified_head_ref')));
+      final emceeQ = tester.getRect(find.byKey(const Key('role_qualified_emcee')));
+      final headRefFav = tester.getRect(find.byKey(const Key('role_wanted_head_ref')));
+      final emceeFav = tester.getRect(find.byKey(const Key('role_wanted_emcee')));
+      expect(headRefQ.left, closeTo(emceeQ.left, 0.5));
+      expect(headRefFav.left, closeTo(emceeFav.left, 0.5));
+    });
+
+    testWidgets(
+        'RolePreferencesSelector certification course link invokes callback on tap',
+        (WidgetTester tester) async {
+      var openedCertification = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RolePreferencesSelector(
+                qualifications: const {'head_ref'},
+                preferredRoles: const {'head_ref'},
+                onQualificationChanged: (_, __) {},
+                onPreferredChanged: (_, __) {},
+                onOpenCertificationCourse: () => openedCertification = true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('certification_course_link')));
+      await tester.pumpAndSettle();
+
+      expect(openedCertification, isTrue);
+    });
+
+    testWidgets(
+        'RolePreferencesSelector blurb text uses high-contrast light color in dark theme',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RolePreferencesSelector(
+                qualifications: const {'head_ref'},
+                preferredRoles: const {'head_ref'},
+                onQualificationChanged: (_, __) {},
+                onPreferredChanged: (_, __) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final qualifiedBlurb = tester.widget<Text>(
+        find.text(
+          '• Qualified: Roles you are qualified or experienced to fill on your profile.',
+        ),
+      );
+      final favouriteBlurb = tester.widget<Text>(
+        find.text(
+          '• Favourite: Roles you prefer — these will be pre-selected by default for each event.',
+        ),
+      );
+
+      expect(qualifiedBlurb.style?.color?.computeLuminance(), greaterThan(0.5));
+      expect(favouriteBlurb.style?.color?.computeLuminance(), greaterThan(0.5));
+    });
+
+    testWidgets(
+        'EventSignupDialog offers all roles as options, pre-selects preferred roles, and does not show "Favourite" or "I want to do this"',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1000, 1400);
       tester.view.devicePixelRatio = 1.0;
@@ -279,8 +447,9 @@ void main() {
         findsOneWidget,
       );
 
-      // "I want to do this" does not appear anywhere in the event signup dialog
+      // "I want to do this" and "Favourite" do not appear anywhere in the event signup dialog
       expect(find.textContaining('I want to do this'), findsNothing);
+      expect(find.textContaining('Favourite'), findsNothing);
 
       // Every official role (including all new roles & Other) is offered as an option
       for (final role in VolunteerRole.values) {
@@ -323,7 +492,7 @@ void main() {
     });
 
     testWidgets(
-        'SignupScreen onboarding saves both Qualified and "I want to do this" preferences',
+        'SignupScreen onboarding saves both Qualified and Favourite preferences',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1000, 2200);
       tester.view.devicePixelRatio = 1.0;

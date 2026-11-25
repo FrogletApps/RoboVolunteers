@@ -43,7 +43,7 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
     if (s != null) {
       _initializedDefaultRoles = true;
     } else {
-      // If new signup, pre-select roles marked "I want to do this" in account preferences
+      // If new signup, pre-select roles marked "Favourite" in account preferences
       final user = ref.read(currentVolunteerProvider);
       if (user != null) {
         _selectedRoles = Set<String>.from(user.defaultEventRoles);

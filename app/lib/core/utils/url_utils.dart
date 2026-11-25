@@ -7,6 +7,10 @@ class UrlUtils {
   static const String volunteerRolesGuideUrl =
       VolunteerRole.roleDetailsGuideUrl;
 
+  /// Official VEX PD+ competition certification courses (Head Referee & Judge Advisor)
+  static const String certificationCourseUrl =
+      'https://pd.vex.com/training/competition';
+
   /// Launch the Volunteer Roles guide page in the user's browser
   static Future<bool> openVolunteerRolesGuide() async {
     final uri = Uri.parse(volunteerRolesGuideUrl);
@@ -16,6 +20,19 @@ class UrlUtils {
       }
     } catch (e) {
       debugPrint('Error launching Volunteer Roles guide URL: $e');
+    }
+    return false;
+  }
+
+  /// Launch the VEX competition certification course page in the user's browser
+  static Future<bool> openCertificationCourse() async {
+    final uri = Uri.parse(certificationCourseUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching VEX certification course URL: $e');
     }
     return false;
   }

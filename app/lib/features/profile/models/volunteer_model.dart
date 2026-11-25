@@ -73,7 +73,7 @@ class VolunteerModel {
     return preferredRoles.map((r) => VolunteerRole.fromId(r)).toList();
   }
 
-  /// Returns the normalized "I want to do this" roles that are also in [qualifications]
+  /// Returns the normalized "Favourite" roles that are also in [qualifications]
   /// (used as the pre-selected defaults when signing up for a new event).
   List<String> get defaultEventRoles {
     final qualifiedSet = qualifications.toSet();

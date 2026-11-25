@@ -10,6 +10,10 @@ class RoleDetailsLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentGreen = isDark ? AppTheme.brandGreenLight : AppTheme.brandGreen;
+    final bodyColor = isDark ? const Color(0xFFE2E8F0) : Colors.grey[700];
+
     return Tooltip(
       message: UrlUtils.volunteerRolesGuideUrl,
       child: InkWell(
@@ -21,10 +25,10 @@ class RoleDetailsLink extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.info_outline,
                 size: 15,
-                color: AppTheme.brandGreen,
+                color: accentGreen,
               ),
               const SizedBox(width: 6),
               Flexible(
@@ -33,16 +37,16 @@ class RoleDetailsLink extends StatelessWidget {
                     text: 'For details on what each role does ',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey[700],
+                      color: bodyColor,
                     ),
-                    children: const [
+                    children: [
                       TextSpan(
                         text: 'click here',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.brandGreen,
+                          color: accentGreen,
                           decoration: TextDecoration.underline,
-                          decorationColor: AppTheme.brandGreen,
+                          decorationColor: accentGreen,
                         ),
                       ),
                     ],
@@ -50,10 +54,10 @@ class RoleDetailsLink extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(
+              Icon(
                 Icons.open_in_new,
                 size: 13,
-                color: AppTheme.brandGreen,
+                color: accentGreen,
               ),
             ],
           ),
