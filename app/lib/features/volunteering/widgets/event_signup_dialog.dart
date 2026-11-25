@@ -182,18 +182,7 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
       _initializedDefaultRoles = true;
     }
 
-    // User's allowed selectable roles = User's qualified roles PLUS 'other'
-    // (plus any already-offered roles if editing an existing signup)
-    final userQualifications = Set<String>.from(user.qualifications);
-    userQualifications.add('other'); // Always allow 'other' role selection
-    if (widget.existingSignup != null) {
-      userQualifications.addAll(widget.existingSignup!.offeredRoles);
-    }
-
-    final allowedRoles = VolunteerRole.values
-        .where((r) => userQualifications.contains(r.id))
-        .toList();
-    final preferredSet = user.defaultEventRoles.toSet();
+    const availableRoles = VolunteerRole.values;
 
     final isExisting = widget.existingSignup != null;
 
@@ -281,40 +270,24 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Role Selection (Filtered from user qualifications; pre-selected from "I want to do this")
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Potential Roles You Can Take',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'From your qualifications',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                            textAlign: TextAlign.end,
-                          ),
-                        ),
-                      ],
+                    // Role Selection (All official roles offered; profile preferred roles pre-selected on new signup)
+                    const Text(
+                      'Potential Roles You Can Take',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       isExisting
-                          ? 'Options shown come from your qualified roles in Profile.'
-                          : 'Options come from your qualified roles. Roles marked "I want to do this" are pre-selected.',
+                          ? 'Select all roles you can take for this event.'
+                          : 'Your preferred roles from Profile are pre-selected. Select any roles you can take.',
                       style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 4),
                     const RoleDetailsLink(),
                     const SizedBox(height: 8),
 
-                    ...allowedRoles.map((role) {
+                    ...availableRoles.map((role) {
                       final isSelected = _selectedRoles.contains(role.id);
-                      final isPreferred = preferredSet.contains(role.id);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: CheckboxListTile(
@@ -327,40 +300,13 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
                           ),
                           dense: true,
                           secondary: Icon(role.icon, color: role.color, size: 20),
-                          title: Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                role.label,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected ? role.color : null,
-                                ),
-                              ),
-                              if (isPreferred)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.brandGreen
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'I want to do this',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppTheme.brandGreen,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                          title: Text(
+                            role.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isSelected ? role.color : null,
+                            ),
                           ),
                           subtitle: role.id == 'other'
                               ? const Text('Custom role not listed above', style: TextStyle(fontSize: 11))
@@ -387,7 +333,7 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
                         controller: _otherRoleController,
                         decoration: const InputDecoration(
                           labelText: 'Specify Other Role *',
-                          hintText: 'e.g. Field Reset, TM Operator, Queuer',
+                          hintText: 'e.g. Setup Crew, Photographer, Event Support',
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         ),
                       ),

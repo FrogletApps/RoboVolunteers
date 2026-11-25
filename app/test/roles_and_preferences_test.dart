@@ -223,7 +223,7 @@ void main() {
     });
 
     testWidgets(
-        'EventSignupDialog shows only qualified roles (+ Other) and pre-selects only "I want to do this" roles',
+        'EventSignupDialog offers all roles as options, pre-selects preferred roles, and does not show "I want to do this"',
         (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1000, 1400);
       tester.view.devicePixelRatio = 1.0;
@@ -279,45 +279,38 @@ void main() {
         findsOneWidget,
       );
 
-      // Qualified roles (+ Other) are shown as options
-      expect(find.byKey(const Key('event_signup_role_head_ref')), findsOneWidget);
-      expect(find.byKey(const Key('event_signup_role_ref')), findsOneWidget);
-      expect(find.byKey(const Key('event_signup_role_emcee')), findsOneWidget);
-      expect(find.byKey(const Key('event_signup_role_queuer')), findsOneWidget);
-      expect(find.byKey(const Key('event_signup_role_other')), findsOneWidget);
+      // "I want to do this" does not appear anywhere in the event signup dialog
+      expect(find.textContaining('I want to do this'), findsNothing);
 
-      // Unqualified roles are NOT shown
-      expect(find.byKey(const Key('event_signup_role_judge')), findsNothing);
-      expect(find.byKey(const Key('event_signup_role_tm_operator')), findsNothing);
-      expect(find.byKey(const Key('event_signup_role_robot_inspector')), findsNothing);
+      // Every official role (including all new roles & Other) is offered as an option
+      for (final role in VolunteerRole.values) {
+        expect(
+          find.byKey(Key('event_signup_role_${role.id}')),
+          findsOneWidget,
+          reason: 'Expected ${role.id} to be offered in EventSignupDialog',
+        );
+      }
 
-      // ONLY "I want to do this" role (emcee) is pre-selected
-      expect(
-        tester
-            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_emcee')))
-            .value,
-        isTrue,
-      );
-      expect(
-        tester
-            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_head_ref')))
-            .value,
-        isFalse,
-      );
-      expect(
-        tester
-            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_ref')))
-            .value,
-        isFalse,
-      );
-      expect(
-        tester
-            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_queuer')))
-            .value,
-        isFalse,
-      );
+      // ONLY preferred role (emcee) is pre-selected by default
+      for (final role in VolunteerRole.values) {
+        final tile = tester.widget<CheckboxListTile>(
+          find.byKey(Key('event_signup_role_${role.id}')),
+        );
+        expect(
+          tile.value,
+          equals(role == VolunteerRole.emcee),
+          reason: 'Unexpected initial selection state for ${role.id}',
+        );
+      }
 
-      // Submitting saves the pre-selected Emcee role cleanly
+      // Volunteer can select a new role not previously in profile qualifications
+      final robotInspectorTile =
+          find.byKey(const Key('event_signup_role_robot_inspector'));
+      await tester.ensureVisible(robotInspectorTile);
+      await tester.tap(robotInspectorTile);
+      await tester.pumpAndSettle();
+
+      // Submitting saves both the pre-selected role and newly selected role cleanly
       await tester.tap(find.widgetWithText(ElevatedButton, 'Sign Up as Volunteer'));
       await tester.pumpAndSettle();
 
@@ -326,7 +319,7 @@ void main() {
         volunteerId: 'vol-event-1',
       );
       expect(saved, isNotNull);
-      expect(saved!.offeredRoles, equals(['emcee']));
+      expect(saved!.offeredRoles.toSet(), equals({'emcee', 'robot_inspector'}));
     });
 
     testWidgets(

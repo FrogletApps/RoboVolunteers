@@ -4,7 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/role_details_link.dart';
 
 /// Dual role selector for account preferences:
-/// 1. "Qualified" — roles the volunteer can fill (controls which options appear on event signups).
+/// 1. "Qualified" — roles the volunteer is qualified to fill.
 /// 2. "I want to do this" — preferred roles (pre-selected by default when signing up for an event).
 class RolePreferencesSelector extends StatelessWidget {
   final Set<String> qualifications;
@@ -75,7 +75,7 @@ class RolePreferencesSelector extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '• Qualified: Roles you can fill — these will show up as options when you sign up for an event.',
+                '• Qualified: Roles you are qualified or experienced to fill on your profile.',
                 style: TextStyle(fontSize: 12, color: Colors.grey[800]),
               ),
               const SizedBox(height: 4),
