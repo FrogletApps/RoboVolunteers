@@ -34,13 +34,21 @@ export type ResolvedInvite =
   | { kind: "one_time"; codeHash: string; record: StoredInviteRecord }
   | { kind: "static" };
 
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end--;
+  }
+  return end === value.length ? value : value.slice(0, end);
+}
+
 export function getPublicAppUrl(env: Env): string {
   const raw = env.PUBLIC_APP_URL?.trim() || "https://robovolunteers.link";
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(raw);
 }
 
 export function buildInviteUrl(code: string, appBaseUrl: string): string {
-  const cleanBase = appBaseUrl.replace(/\/+$/, "");
+  const cleanBase = stripTrailingSlashes(appBaseUrl);
   return `${cleanBase}/?invite=${encodeURIComponent(code)}`;
 }
 

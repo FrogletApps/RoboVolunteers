@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { handleWorkerRequest } from "../src/index.ts";
+import { buildInviteUrl, getPublicAppUrl } from "../src/invites.ts";
 import {
   clearCachedGoogleOAuthTokenForTests,
   FIREBASE_SECURETOKEN_JWKS_URL,
@@ -1499,6 +1500,29 @@ describe("RoboVolunteers Auth OTP Cloudflare Worker", () => {
     assert.equal(
       registeredFirebaseUsers.get("flaky@example.org")?.inviteVerified,
       true
+    );
+  });
+
+  it("strips trailing slashes safely in getPublicAppUrl and buildInviteUrl", () => {
+    assert.equal(
+      getPublicAppUrl(createEnv({ PUBLIC_APP_URL: "  https://robovolunteers.link///  " })),
+      "https://robovolunteers.link"
+    );
+    assert.equal(
+      getPublicAppUrl(createEnv({ PUBLIC_APP_URL: "" })),
+      "https://robovolunteers.link"
+    );
+    assert.equal(
+      buildInviteUrl("RV-AAAA-BBBB-CCCC", "https://robovolunteers.link///"),
+      "https://robovolunteers.link/?invite=RV-AAAA-BBBB-CCCC"
+    );
+    assert.equal(
+      buildInviteUrl("RV-AAAA-BBBB-CCCC", "https://robovolunteers.link"),
+      "https://robovolunteers.link/?invite=RV-AAAA-BBBB-CCCC"
+    );
+    assert.equal(
+      buildInviteUrl("RV-AAAA-BBBB-CCCC", "///"),
+      "/?invite=RV-AAAA-BBBB-CCCC"
     );
   });
 });
