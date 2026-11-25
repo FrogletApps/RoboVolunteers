@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds the RoboVolunteers Flutter Web app and/or Auth OTP Worker, then deploys to Cloudflare Workers with Static Assets.
+  Builds the RoboVolunteers Flutter Web app and/or Auth OTP Worker, deploys to Cloudflare Workers with Static Assets, and deploys Cloud Firestore Security Rules & Indexes.
 .PARAMETER SkipBuild
   Skips all builds and deploys directly using existing artifacts.
 .PARAMETER SkipWebBuild
@@ -10,14 +10,16 @@
 .PARAMETER DeployWorker
   Also deploys the Auth OTP Cloudflare Worker (workers/auth-otp).
 .PARAMETER DeployFirestore
-  Deploys Cloud Firestore Security Rules and Indexes using firebase-tools.
+  Explicitly enables deploying Cloud Firestore Security Rules and Indexes (enabled by default).
+.PARAMETER SkipFirestore
+  Skips deploying Cloud Firestore Security Rules and Indexes.
 .PARAMETER DryRun
   Runs deployment in dry-run mode without publishing live.
 .EXAMPLE
   .\scripts\deploy.ps1
   .\scripts\deploy.ps1 -DryRun
   .\scripts\deploy.ps1 -DeployWorker
-  .\scripts\deploy.ps1 -DeployWorker -DeployFirestore
+  .\scripts\deploy.ps1 -SkipFirestore
   .\scripts\deploy.ps1 -SkipWebBuild
 #>
 param (
@@ -26,6 +28,7 @@ param (
     [switch]$SkipWorkerCheck,
     [switch]$DeployWorker,
     [switch]$DeployFirestore,
+    [switch]$SkipFirestore,
     [switch]$DryRun
 )
 
@@ -36,14 +39,14 @@ $workerDir = Join-Path $rootDir "workers\auth-otp"
 
 # Step 1: Worker verification / test
 if (-not $SkipBuild -and -not $SkipWorkerCheck) {
-    Write-Host ">>> Step 1/3: Verifying & Testing Auth OTP Worker..." -ForegroundColor Cyan
+    Write-Host ">>> Step 1/4: Verifying & Testing Auth OTP Worker..." -ForegroundColor Cyan
     & "$PSScriptRoot\build.ps1" worker
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Worker verification failed with exit code $LASTEXITCODE"
         exit $LASTEXITCODE
     }
 } else {
-    Write-Host ">>> Step 1/3: Skipping worker check..." -ForegroundColor Yellow
+    Write-Host ">>> Step 1/4: Skipping worker check..." -ForegroundColor Yellow
 }
 
 # Optional: Deploy Worker if requested
@@ -65,18 +68,18 @@ if ($DeployWorker) {
 
 # Step 2: Flutter Web PWA build
 if (-not $SkipBuild -and -not $SkipWebBuild) {
-    Write-Host "`n>>> Step 2/3: Building Flutter Web PWA (WASM + CanvasKit fallback)..." -ForegroundColor Cyan
+    Write-Host "`n>>> Step 2/4: Building Flutter Web PWA (WASM + CanvasKit fallback)..." -ForegroundColor Cyan
     & "$PSScriptRoot\build.ps1" web
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Flutter web build failed with exit code $LASTEXITCODE"
         exit $LASTEXITCODE
     }
 } else {
-    Write-Host "`n>>> Step 2/3: Skipping web build (using existing app/build/web)..." -ForegroundColor Yellow
+    Write-Host "`n>>> Step 2/4: Skipping web build (using existing app/build/web)..." -ForegroundColor Yellow
 }
 
 # Step 3: Cloudflare deployment (Web Static Assets)
-Write-Host "`n>>> Step 3/3: Deploying Web Assets to Cloudflare..." -ForegroundColor Cyan
+Write-Host "`n>>> Step 3/4: Deploying Web Assets to Cloudflare..." -ForegroundColor Cyan
 Push-Location $rootDir
 try {
     $deployArgs = @("deploy", "--config", "wrangler.jsonc")
@@ -90,12 +93,14 @@ try {
     Pop-Location
 }
 
-# Step 4 (Optional): Firebase Firestore Rules & Indexes
-if ($DeployFirestore) {
-    Write-Host "`n>>> Step 4: Deploying Cloud Firestore Rules & Indexes to Firebase..." -ForegroundColor Cyan
+# Step 4: Firebase Firestore Rules & Indexes (enabled by default; pass -SkipFirestore to skip)
+if (-not $SkipFirestore -or $DeployFirestore) {
+    Write-Host "`n>>> Step 4/4: Deploying Cloud Firestore Rules & Indexes to Firebase..." -ForegroundColor Cyan
     Push-Location $rootDir
     try {
-        npx -y firebase-tools@latest deploy --only firestore
+        $firestoreDeployArgs = @("-y", "firebase-tools@latest", "deploy", "--only", "firestore")
+        if ($DryRun) { $firestoreDeployArgs += "--dry-run" }
+        npx @firestoreDeployArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Firebase Firestore deployment failed with exit code $LASTEXITCODE"
             exit $LASTEXITCODE
@@ -103,6 +108,8 @@ if ($DeployFirestore) {
     } finally {
         Pop-Location
     }
+} else {
+    Write-Host "`n>>> Step 4/4: Skipping Cloud Firestore Rules & Indexes deployment..." -ForegroundColor Yellow
 }
 
 Write-Host "`n========================================" -ForegroundColor Green

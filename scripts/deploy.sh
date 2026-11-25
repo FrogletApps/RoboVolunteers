@@ -5,7 +5,7 @@ SKIP_BUILD=false
 SKIP_WEB=false
 SKIP_WORKER=false
 DEPLOY_WORKER=false
-DEPLOY_FIRESTORE=false
+DEPLOY_FIRESTORE=true
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
@@ -30,6 +30,10 @@ while [[ $# -gt 0 ]]; do
       DEPLOY_FIRESTORE=true
       shift
       ;;
+    --skip-firestore)
+      DEPLOY_FIRESTORE=false
+      shift
+      ;;
     --dry-run)
       DRY_RUN=true
       shift
@@ -47,10 +51,10 @@ WORKER_DIR="$ROOT_DIR/workers/auth-otp"
 
 # Step 1: Worker check
 if [ "$SKIP_BUILD" = false ] && [ "$SKIP_WORKER" = false ]; then
-  echo ">>> Step 1/3: Verifying & Testing Auth OTP Worker..."
+  echo ">>> Step 1/4: Verifying & Testing Auth OTP Worker..."
   "$SCRIPT_DIR/build.sh" worker
 else
-  echo ">>> Step 1/3: Skipping worker check..."
+  echo ">>> Step 1/4: Skipping worker check..."
 fi
 
 # Optional: Deploy Worker
@@ -64,24 +68,28 @@ fi
 
 # Step 2: Flutter Web build
 if [ "$SKIP_BUILD" = false ] && [ "$SKIP_WEB" = false ]; then
-  echo -e "\n>>> Step 2/3: Building Flutter Web PWA..."
+  echo -e "\n>>> Step 2/4: Building Flutter Web PWA..."
   "$SCRIPT_DIR/build.sh" web
 else
-  echo -e "\n>>> Step 2/3: Skipping web build..."
+  echo -e "\n>>> Step 2/4: Skipping web build..."
 fi
 
 # Step 3: Cloudflare deploy
-echo -e "\n>>> Step 3/3: Deploying Web Assets to Cloudflare..."
+echo -e "\n>>> Step 3/4: Deploying Web Assets to Cloudflare..."
 cd "$ROOT_DIR"
 deploy_args=("deploy" "--config" "wrangler.jsonc")
 if [ "$DRY_RUN" = true ]; then deploy_args+=("--dry-run"); fi
 npx wrangler "${deploy_args[@]}"
 
-# Step 4 (Optional): Firestore deploy
+# Step 4: Firestore deploy (enabled by default; pass --skip-firestore to skip)
 if [ "$DEPLOY_FIRESTORE" = true ]; then
-  echo -e "\n>>> Step 4: Deploying Cloud Firestore Rules & Indexes to Firebase..."
+  echo -e "\n>>> Step 4/4: Deploying Cloud Firestore Rules & Indexes to Firebase..."
   cd "$ROOT_DIR"
-  npx -y firebase-tools@latest deploy --only firestore
+  firestore_args=("-y" "firebase-tools@latest" "deploy" "--only" "firestore")
+  if [ "$DRY_RUN" = true ]; then firestore_args+=("--dry-run"); fi
+  npx "${firestore_args[@]}"
+else
+  echo -e "\n>>> Step 4/4: Skipping Cloud Firestore Rules & Indexes deployment..."
 fi
 
 echo -e "\n========================================"

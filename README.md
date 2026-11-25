@@ -91,17 +91,17 @@ Just like the main RoboRef repository, automated date-based versioning (`YYYY.M.
 
 #### One-Command Deploy (`scripts/deploy.ps1` or `scripts/deploy.sh`)
 ```powershell
-# Verify worker, compile web app, and deploy to Cloudflare
+# Verify worker, compile web app, deploy to Cloudflare, and deploy Firestore rules & indexes
 .\scripts\deploy.ps1
 
 # Dry-run validation without publishing
 .\scripts\deploy.ps1 -DryRun
 
-# Deploy both web app and Auth OTP Cloudflare Worker
+# Deploy web app, Auth OTP Cloudflare Worker, and Firestore rules & indexes
 .\scripts\deploy.ps1 -DeployWorker
 
-# Deploy web app, worker, and Firebase Firestore security rules
-.\scripts\deploy.ps1 -DeployWorker -DeployFirestore
+# Skip deploying Firestore rules & indexes
+.\scripts\deploy.ps1 -SkipFirestore
 
 # Deploy using existing build artifacts (fast deploy)
 .\scripts\deploy.ps1 -SkipWebBuild
