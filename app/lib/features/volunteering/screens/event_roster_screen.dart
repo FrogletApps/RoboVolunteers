@@ -4,6 +4,7 @@ import '../../../core/constants/roles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/sku_utils.dart';
 import '../../../core/utils/url_utils.dart';
+import '../../../core/widgets/role_details_link.dart';
 import '../../events/models/event_model.dart';
 import '../../auth_invites/state/auth_provider.dart';
 import '../models/signup_model.dart';
@@ -435,6 +436,8 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                             'Role Coverage Offered:',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
+                          const SizedBox(height: 2),
+                          const RoleDetailsLink(),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,

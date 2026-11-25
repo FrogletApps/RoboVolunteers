@@ -9,6 +9,7 @@ class VolunteerModel {
   final String email;
   final String? phone;
   final List<String> qualifications;
+  final List<String> preferredRoles;
   final bool isEmailPublic;
   final bool isPhonePublic;
   final bool forwardingEnabled;
@@ -22,6 +23,7 @@ class VolunteerModel {
     required this.email,
     this.phone,
     this.qualifications = const [],
+    this.preferredRoles = const [],
     this.isEmailPublic = false,
     this.isPhonePublic = false,
     this.forwardingEnabled = false,
@@ -59,8 +61,26 @@ class VolunteerModel {
     return qualifications.contains(roleId);
   }
 
+  bool prefersRole(String roleId) {
+    return preferredRoles.contains(roleId);
+  }
+
   List<VolunteerRole> get qualifiedRoles {
     return qualifications.map((q) => VolunteerRole.fromId(q)).toList();
+  }
+
+  List<VolunteerRole> get preferredRoleEnums {
+    return preferredRoles.map((r) => VolunteerRole.fromId(r)).toList();
+  }
+
+  /// Returns the normalized "I want to do this" roles that are also in [qualifications]
+  /// (used as the pre-selected defaults when signing up for a new event).
+  List<String> get defaultEventRoles {
+    final qualifiedSet = qualifications.toSet();
+    return preferredRoles
+        .where((r) => qualifiedSet.contains(r))
+        .toSet()
+        .toList();
   }
 
   VolunteerModel copyWith({
@@ -69,6 +89,7 @@ class VolunteerModel {
     String? email,
     String? phone,
     List<String>? qualifications,
+    List<String>? preferredRoles,
     bool? isEmailPublic,
     bool? isPhonePublic,
     bool? forwardingEnabled,
@@ -82,6 +103,7 @@ class VolunteerModel {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       qualifications: qualifications ?? this.qualifications,
+      preferredRoles: preferredRoles ?? this.preferredRoles,
       isEmailPublic: isEmailPublic ?? this.isEmailPublic,
       isPhonePublic: isPhonePublic ?? this.isPhonePublic,
       forwardingEnabled: forwardingEnabled ?? this.forwardingEnabled,
@@ -94,10 +116,18 @@ class VolunteerModel {
   /// Roster-visible Firestore document (`volunteers/{uid}`) — strictly zero PII.
   /// Matches `isValidVolunteerProfile(uid)` in `firestore.rules`.
   Map<String, dynamic> toPublicFirestoreMap({Object? updatedAtTimestamp}) {
+    final cleanQualifications = qualifications.toSet().toList();
+    final qualifiedSet = cleanQualifications.toSet();
+    final cleanPreferredRoles = preferredRoles
+        .where((r) => qualifiedSet.contains(r))
+        .toSet()
+        .toList();
+
     return {
       'id': id,
       'name': name.trim(),
-      'qualifications': qualifications,
+      'qualifications': cleanQualifications,
+      'preferredRoles': cleanPreferredRoles,
       'forwardingAddress': forwardingAddress,
       'isEmailPublic': false,
       'isPhonePublic': false,
@@ -130,6 +160,20 @@ class VolunteerModel {
     final resolvedEmail =
         (privateData?['email'] as String?)?.trim() ?? fallbackEmail;
     final resolvedPhone = privateData?['phone'] as String?;
+    final parsedQualifications = (publicData['qualifications'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+    final hasPreferredRolesField =
+        publicData.containsKey('preferredRoles') &&
+            publicData['preferredRoles'] != null;
+    final parsedPreferredRoles = hasPreferredRolesField
+        ? (publicData['preferredRoles'] as List<dynamic>)
+            .map((e) => e.toString())
+            .where((r) => parsedQualifications.contains(r))
+            .toSet()
+            .toList()
+        : List<String>.from(parsedQualifications);
 
     return VolunteerModel(
       id: uid,
@@ -138,10 +182,8 @@ class VolunteerModel {
       phone: (resolvedPhone != null && resolvedPhone.trim().isNotEmpty)
           ? resolvedPhone.trim()
           : null,
-      qualifications: (publicData['qualifications'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      qualifications: parsedQualifications,
+      preferredRoles: parsedPreferredRoles,
       isEmailPublic: false,
       isPhonePublic: false,
       forwardingEnabled: false,
@@ -158,6 +200,7 @@ class VolunteerModel {
         'email': email,
         'phone': phone,
         'qualifications': qualifications,
+        'preferredRoles': preferredRoles,
         'isEmailPublic': isEmailPublic,
         'isPhonePublic': isPhonePublic,
         'forwardingEnabled': forwardingEnabled,
@@ -168,15 +211,25 @@ class VolunteerModel {
 
   factory VolunteerModel.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'] as String? ?? 'vol-unknown';
+    final parsedQualifications = (json['qualifications'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+    final hasPreferredRoles =
+        json.containsKey('preferredRoles') && json['preferredRoles'] != null;
+    final parsedPreferredRoles = hasPreferredRoles
+        ? (json['preferredRoles'] as List<dynamic>)
+            .map((e) => e.toString())
+            .toList()
+        : const <String>[];
+
     return VolunteerModel(
       id: rawId,
       name: json['name'] as String? ?? '',
       email: json['email'] as String? ?? '',
       phone: json['phone'] as String?,
-      qualifications: (json['qualifications'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      qualifications: parsedQualifications,
+      preferredRoles: parsedPreferredRoles,
       isEmailPublic: false,
       isPhonePublic: false,
       forwardingEnabled: false,

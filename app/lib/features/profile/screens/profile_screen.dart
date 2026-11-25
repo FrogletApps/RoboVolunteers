@@ -4,6 +4,8 @@ import '../../../core/constants/roles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../admin/screens/admin_portal_screen.dart';
 import '../../auth_invites/state/auth_provider.dart';
+import '../models/volunteer_model.dart';
+import '../widgets/role_preferences_selector.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -18,19 +20,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _phoneController = TextEditingController();
 
   late Set<String> _qualifications;
+  late Set<String> _preferredRoles;
+  bool _initializedFromUser = false;
   final bool _isPhonePublic = false;
   final bool _isEmailPublic = false;
   final bool _forwardingEnabled = false;
   final bool _isEventPartner = false;
 
+  void _syncFromUser(VolunteerModel user) {
+    _nameController.text = user.name;
+    _emailController.text = user.email;
+    _phoneController.text = user.phone ?? '';
+    _qualifications = Set<String>.from(user.qualifications)
+      ..remove(VolunteerRole.other.id);
+    _preferredRoles = Set<String>.from(user.defaultEventRoles)
+      ..remove(VolunteerRole.other.id);
+    _initializedFromUser = true;
+  }
+
   @override
   void initState() {
     super.initState();
+    _qualifications = <String>{};
+    _preferredRoles = <String>{};
     final user = ref.read(currentVolunteerProvider);
-    _nameController.text = user?.name ?? '';
-    _emailController.text = user?.email ?? '';
-    _phoneController.text = user?.phone ?? '';
-    _qualifications = Set<String>.from(user?.qualifications ?? []);
+    if (user != null) {
+      _syncFromUser(user);
+    }
   }
 
   @override
@@ -45,11 +61,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.read(currentVolunteerProvider);
     if (user == null) return;
 
+    final cleanPreferred =
+        _preferredRoles.where(_qualifications.contains).toList();
+
     final updated = user.copyWith(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
       qualifications: _qualifications.toList(),
+      preferredRoles: cleanPreferred,
       isPhonePublic: _isPhonePublic,
       isEmailPublic: _isEmailPublic,
       forwardingEnabled: _forwardingEnabled,
@@ -82,6 +102,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return const Scaffold(
         body: Center(child: Text('No active volunteer session')),
       );
+    }
+    if (!_initializedFromUser) {
+      _syncFromUser(user);
     }
 
     return Scaffold(
@@ -279,40 +302,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Qualifications
-                const Text(
-                  'Qualifications & Certified Roles',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                // Qualifications & Preferred Roles
+                RolePreferencesSelector(
+                  title: 'Qualifications & Role Preferences',
+                  qualifications: _qualifications,
+                  preferredRoles: _preferredRoles,
+                  onQualificationChanged: (roleId, isQualified) {
+                    setState(() {
+                      if (isQualified) {
+                        _qualifications.add(roleId);
+                      } else {
+                        _qualifications.remove(roleId);
+                        _preferredRoles.remove(roleId);
+                      }
+                    });
+                  },
+                  onPreferredChanged: (roleId, isPreferred) {
+                    setState(() {
+                      if (isPreferred) {
+                        _qualifications.add(roleId);
+                        _preferredRoles.add(roleId);
+                      } else {
+                        _preferredRoles.remove(roleId);
+                      }
+                    });
+                  },
                 ),
-                const SizedBox(height: 10),
-                ...VolunteerRole.values.map((role) {
-                  final isSelected = _qualifications.contains(role.id);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: CheckboxListTile(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: isSelected ? role.color : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      secondary: Icon(role.icon, color: role.color),
-                      title: Text(role.label, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(role.description, style: const TextStyle(fontSize: 11)),
-                      value: isSelected,
-                      activeColor: role.color,
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == true) {
-                            _qualifications.add(role.id);
-                          } else {
-                            _qualifications.remove(role.id);
-                          }
-                        });
-                      },
-                    ),
-                  );
-                }),
                 const SizedBox(height: 24),
 
                 // Privacy & Forwarding Settings

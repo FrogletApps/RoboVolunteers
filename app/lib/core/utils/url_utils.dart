@@ -1,7 +1,25 @@
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../constants/roles.dart';
 
 class UrlUtils {
+  /// Official Global Robotics Library article explaining local event volunteer roles
+  static const String volunteerRolesGuideUrl =
+      VolunteerRole.roleDetailsGuideUrl;
+
+  /// Launch the Volunteer Roles guide page in the user's browser
+  static Future<bool> openVolunteerRolesGuide() async {
+    final uri = Uri.parse(volunteerRolesGuideUrl);
+    try {
+      if (await canLaunchUrl(uri)) {
+        return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching Volunteer Roles guide URL: $e');
+    }
+    return false;
+  }
+
   /// Builds official VEX Events / RobotEvents web URL for an event SKU
   static String getVexEventsUrl(String sku) {
     final cleanSku = sku.trim().toUpperCase();

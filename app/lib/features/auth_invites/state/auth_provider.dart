@@ -211,6 +211,7 @@ class AuthController extends Notifier<AuthGateState> {
     required String name,
     String? phone,
     required List<String> qualifications,
+    List<String>? preferredRoles,
   }) async {
     final session = state.session ?? _authService.currentSession;
     if (session == null) {
@@ -225,6 +226,7 @@ class AuthController extends Notifier<AuthGateState> {
       name: name,
       phone: phone,
       qualifications: qualifications,
+      preferredRoles: preferredRoles,
     );
     state = AuthGateState.authenticated(session: session, volunteer: saved);
     return saved;

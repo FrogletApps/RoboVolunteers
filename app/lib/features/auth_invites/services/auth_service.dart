@@ -698,6 +698,7 @@ class AuthService {
     required String name,
     String? phone,
     required List<String> qualifications,
+    List<String>? preferredRoles,
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -713,12 +714,20 @@ class AuthService {
       );
     }
 
+    final cleanQualifications = qualifications.toSet().toList();
+    final qualifiedSet = cleanQualifications.toSet();
+    final cleanPreferredRoles = (preferredRoles ?? cleanQualifications)
+        .where((r) => qualifiedSet.contains(r))
+        .toSet()
+        .toList();
+
     final initialProfile = VolunteerModel(
       id: session.uid,
       name: trimmedName,
       email: session.email,
       phone: phone?.trim(),
-      qualifications: qualifications,
+      qualifications: cleanQualifications,
+      preferredRoles: cleanPreferredRoles,
       isEmailPublic: false,
       isPhonePublic: false,
       forwardingEnabled: false,

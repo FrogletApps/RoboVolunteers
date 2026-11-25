@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/roles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../profile/widgets/role_preferences_selector.dart';
 import '../state/auth_provider.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
@@ -24,6 +24,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _phoneController = TextEditingController();
 
   final Set<String> _selectedQualifications = {'head_ref', 'ref'};
+  final Set<String> _selectedPreferredRoles = {'head_ref', 'ref'};
   final bool _isPhonePublic = false;
   final bool _isEmailPublic = false;
   final bool _forwardingEnabled = false;
@@ -56,12 +57,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final cleanPreferred = _selectedPreferredRoles
+          .where(_selectedQualifications.contains)
+          .toList();
       await ref.read(authControllerProvider.notifier).completeOnboarding(
             name: _nameController.text.trim(),
             phone: _phoneController.text.trim().isNotEmpty
                 ? _phoneController.text.trim()
                 : null,
             qualifications: _selectedQualifications.toList(),
+            preferredRoles: cleanPreferred,
           );
     } catch (e) {
       if (mounted) {
@@ -170,107 +175,32 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                     const SizedBox(height: 28),
 
-                    // Qualifications Section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Your Qualifications',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Select all that apply',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
+                    // Qualifications & Role Preferences Section
+                    RolePreferencesSelector(
+                      title: 'Your Qualifications & Role Preferences',
+                      qualifications: _selectedQualifications,
+                      preferredRoles: _selectedPreferredRoles,
+                      onQualificationChanged: (roleId, isQualified) {
+                        setState(() {
+                          if (isQualified) {
+                            _selectedQualifications.add(roleId);
+                          } else {
+                            _selectedQualifications.remove(roleId);
+                            _selectedPreferredRoles.remove(roleId);
+                          }
+                        });
+                      },
+                      onPreferredChanged: (roleId, isPreferred) {
+                        setState(() {
+                          if (isPreferred) {
+                            _selectedQualifications.add(roleId);
+                            _selectedPreferredRoles.add(roleId);
+                          } else {
+                            _selectedPreferredRoles.remove(roleId);
+                          }
+                        });
+                      },
                     ),
-                    const SizedBox(height: 12),
-
-                    ...VolunteerRole.values.map((role) {
-                      final isSelected =
-                          _selectedQualifications.contains(role.id);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: InkWell(
-                          onTap: () {
-                            setState(() {
-                              if (isSelected) {
-                                _selectedQualifications.remove(role.id);
-                              } else {
-                                _selectedQualifications.add(role.id);
-                              }
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? role.color.withValues(alpha: 0.08)
-                                  : Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected
-                                    ? role.color
-                                    : const Color(0xFFE2E8F0),
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(role.icon, color: role.color, size: 24),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        role.label,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: isSelected ? role.color : null,
-                                        ),
-                                      ),
-                                      Text(
-                                        role.description,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Checkbox(
-                                  value: isSelected,
-                                  activeColor: role.color,
-                                  onChanged: (val) {
-                                    setState(() {
-                                      if (val == true) {
-                                        _selectedQualifications.add(role.id);
-                                      } else {
-                                        _selectedQualifications.remove(role.id);
-                                      }
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
                     const SizedBox(height: 28),
 
                     // Contact Privacy Settings (Locked off for v1)

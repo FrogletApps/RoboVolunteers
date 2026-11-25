@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/roles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/role_details_link.dart';
 import '../../auth_invites/state/auth_provider.dart';
 import '../models/signup_model.dart';
 import '../state/volunteering_provider.dart';
@@ -25,6 +26,7 @@ class EventSignupDialog extends ConsumerStatefulWidget {
 class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
   late SignupStatus _status;
   late Set<String> _selectedRoles;
+  bool _initializedDefaultRoles = false;
   final _otherRoleController = TextEditingController();
   final _notesController = TextEditingController();
   bool _isLoading = false;
@@ -38,11 +40,14 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
     _otherRoleController.text = s?.otherRoleDescription ?? '';
     _notesController.text = s?.notes ?? '';
 
-    // If new signup, default select all their qualified roles
-    if (s == null) {
+    if (s != null) {
+      _initializedDefaultRoles = true;
+    } else {
+      // If new signup, pre-select roles marked "I want to do this" in account preferences
       final user = ref.read(currentVolunteerProvider);
-      if (user != null && user.qualifications.isNotEmpty) {
-        _selectedRoles = Set<String>.from(user.qualifications);
+      if (user != null) {
+        _selectedRoles = Set<String>.from(user.defaultEventRoles);
+        _initializedDefaultRoles = true;
       }
     }
   }
@@ -172,11 +177,23 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
     final user = ref.watch(currentVolunteerProvider);
     if (user == null) return const SizedBox();
 
+    if (!_initializedDefaultRoles) {
+      _selectedRoles = Set<String>.from(user.defaultEventRoles);
+      _initializedDefaultRoles = true;
+    }
+
     // User's allowed selectable roles = User's qualified roles PLUS 'other'
+    // (plus any already-offered roles if editing an existing signup)
     final userQualifications = Set<String>.from(user.qualifications);
     userQualifications.add('other'); // Always allow 'other' role selection
+    if (widget.existingSignup != null) {
+      userQualifications.addAll(widget.existingSignup!.offeredRoles);
+    }
 
-    final allowedRoles = VolunteerRole.values.where((r) => userQualifications.contains(r.id)).toList();
+    final allowedRoles = VolunteerRole.values
+        .where((r) => userQualifications.contains(r.id))
+        .toList();
+    final preferredSet = user.defaultEventRoles.toSet();
 
     final isExisting = widget.existingSignup != null;
 
@@ -264,27 +281,44 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Role Selection (Filtered from user qualifications)
+                    // Role Selection (Filtered from user qualifications; pre-selected from "I want to do this")
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Potential Roles You Can Take',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        const Expanded(
+                          child: Text(
+                            'Potential Roles You Can Take',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
                         ),
-                        Text(
-                          'From your qualifications',
-                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'From your qualifications',
+                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                            textAlign: TextAlign.end,
+                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isExisting
+                          ? 'Options shown come from your qualified roles in Profile.'
+                          : 'Options come from your qualified roles. Roles marked "I want to do this" are pre-selected.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 4),
+                    const RoleDetailsLink(),
                     const SizedBox(height: 8),
 
                     ...allowedRoles.map((role) {
                       final isSelected = _selectedRoles.contains(role.id);
+                      final isPreferred = preferredSet.contains(role.id);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: CheckboxListTile(
+                          key: Key('event_signup_role_${role.id}'),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                             side: BorderSide(
@@ -293,16 +327,43 @@ class _EventSignupDialogState extends ConsumerState<EventSignupDialog> {
                           ),
                           dense: true,
                           secondary: Icon(role.icon, color: role.color, size: 20),
-                          title: Text(
-                            role.label,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: isSelected ? role.color : null,
-                            ),
+                          title: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                role.label,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected ? role.color : null,
+                                ),
+                              ),
+                              if (isPreferred)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.brandGreen
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'I want to do this',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.brandGreen,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                           subtitle: role.id == 'other'
-                              ? const Text('Custom role (Field Queue, TM, Inspection, etc.)', style: TextStyle(fontSize: 11))
+                              ? const Text('Custom role not listed above', style: TextStyle(fontSize: 11))
                               : Text(role.description, style: const TextStyle(fontSize: 11)),
                           value: isSelected,
                           activeColor: role.color,

@@ -1,0 +1,399 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:robovolunteers/core/constants/roles.dart';
+import 'package:robovolunteers/core/utils/url_utils.dart';
+import 'package:robovolunteers/features/auth_invites/screens/signup_screen.dart';
+import 'package:robovolunteers/features/auth_invites/services/auth_service.dart';
+import 'package:robovolunteers/features/auth_invites/services/otp_auth_api_client.dart';
+import 'package:robovolunteers/features/auth_invites/state/auth_provider.dart';
+import 'package:robovolunteers/features/profile/models/volunteer_model.dart';
+import 'package:robovolunteers/features/profile/screens/profile_screen.dart';
+import 'package:robovolunteers/features/volunteering/services/volunteer_repository.dart';
+import 'package:robovolunteers/features/volunteering/state/volunteering_provider.dart';
+import 'package:robovolunteers/features/volunteering/widgets/event_signup_dialog.dart';
+
+void main() {
+  group('Volunteer Roles Catalog & Guide URL (Issue #14)', () {
+    test('Includes all 12 official local event roles including Emcee', () {
+      final roleIds = VolunteerRole.values.map((r) => r.id).toList();
+      expect(
+        roleIds,
+        equals([
+          'head_ref',
+          'ref',
+          'robot_inspector',
+          'judge_advisor',
+          'judge',
+          'tm_operator',
+          'emcee',
+          'field_resetter',
+          'queuer',
+          'pit_admin',
+          'hospitality',
+          'other',
+        ]),
+      );
+
+      expect(VolunteerRole.fromId('emcee'), equals(VolunteerRole.emcee));
+      expect(VolunteerRole.emcee.label, equals('Emcee'));
+      expect(
+        VolunteerRole.fromId('tm_operator'),
+        equals(VolunteerRole.tmOperator),
+      );
+      expect(
+        VolunteerRole.fromId('robot_inspector'),
+        equals(VolunteerRole.robotInspector),
+      );
+      expect(
+        UrlUtils.volunteerRolesGuideUrl,
+        equals(
+          'https://library.globalrobotics.org/hc/en-us/articles/51905218620820-Volunteer-Roles-at-a-Local-Event',
+        ),
+      );
+    });
+  });
+
+  group('VolunteerModel Qualified & Preferred Roles Serialization (Issue #25)', () {
+    test(
+        'Serializes preferredRoles as a subset of qualifications and preserves explicit empty list',
+        () {
+      const volunteer = VolunteerModel(
+        id: 'vol-pref-1',
+        name: 'Jordan Emcee',
+        email: 'jordan@example.org',
+        qualifications: ['head_ref', 'ref', 'emcee'],
+        preferredRoles: ['emcee', 'queuer'], // queuer not qualified -> filtered out
+        forwardingAddress: 'vol-pref1000@volunteer.roboref.app',
+      );
+
+      expect(volunteer.defaultEventRoles, equals(['emcee']));
+
+      final publicMap = volunteer.toPublicFirestoreMap(
+        updatedAtTimestamp: DateTime(2026, 11, 25),
+      );
+      expect(publicMap['qualifications'], equals(['head_ref', 'ref', 'emcee']));
+      expect(publicMap['preferredRoles'], equals(['emcee']));
+
+      final restored = VolunteerModel.fromFirestoreMaps(
+        uid: 'vol-pref-1',
+        publicData: publicMap,
+        privateData: const {'email': 'jordan@example.org'},
+      );
+      expect(restored.qualifications, equals(['head_ref', 'ref', 'emcee']));
+      expect(restored.preferredRoles, equals(['emcee']));
+
+      // Explicit empty preferredRoles stays empty on round-trip
+      final emptyPref = volunteer.copyWith(preferredRoles: const []);
+      final emptyMap = emptyPref.toPublicFirestoreMap(
+        updatedAtTimestamp: DateTime(2026, 11, 25),
+      );
+      final restoredEmpty = VolunteerModel.fromFirestoreMaps(
+        uid: 'vol-pref-1',
+        publicData: emptyMap,
+        privateData: const {'email': 'jordan@example.org'},
+      );
+      expect(restoredEmpty.preferredRoles, isEmpty);
+    });
+
+    test(
+        'Legacy Firestore volunteer doc without preferredRoles defaults to qualifications',
+        () {
+      final restored = VolunteerModel.fromFirestoreMaps(
+        uid: 'vol-legacy',
+        publicData: const {
+          'id': 'vol-legacy',
+          'name': 'Legacy Ref',
+          'qualifications': ['head_ref', 'ref'],
+          'forwardingAddress': 'vol-legacy00@volunteer.roboref.app',
+        },
+        privateData: const {'email': 'legacy@example.org'},
+      );
+
+      expect(restored.qualifications, equals(['head_ref', 'ref']));
+      expect(restored.preferredRoles, equals(['head_ref', 'ref']));
+    });
+  });
+
+  group('Dual Role Selectors & Event Signup Pre-Selection Widget Tests', () {
+    testWidgets(
+        'ProfileScreen shows all roles, guide link, and dual Qualified / "I want to do this" selectors',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const session = AuthSession(
+        uid: 'vol-profile-1',
+        email: 'sam@example.org',
+      );
+      const profile = VolunteerModel(
+        id: 'vol-profile-1',
+        name: 'Sam Volunteer',
+        email: 'sam@example.org',
+        qualifications: ['head_ref', 'ref'],
+        preferredRoles: ['ref'],
+        forwardingAddress: 'vol-prof1000@volunteer.roboref.app',
+      );
+
+      final authBackend = InMemoryAuthBackend(
+        initialSession: session,
+        initialProfile: profile,
+      );
+      addTearDown(authBackend.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authBackendProvider.overrideWithValue(authBackend),
+            otpAuthApiClientProvider.overrideWithValue(
+              OtpAuthApiClient(
+                httpClient: MockClient((_) async => http.Response('Offline', 503)),
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: ProfileScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guide link with requested text is rendered
+      expect(find.byKey(const Key('volunteer_roles_guide_link')), findsOneWidget);
+      expect(
+        find.text('For details on what each role does click here', findRichText: true),
+        findsOneWidget,
+      );
+
+      // New roles including Emcee are rendered, while Other is per-event only
+      expect(find.text('Emcee'), findsOneWidget);
+      expect(find.text('Robot Inspector'), findsOneWidget);
+      expect(find.text('Tournament Manager Operator'), findsOneWidget);
+      expect(find.text('Field Resetter'), findsOneWidget);
+      expect(find.text('Queuer'), findsOneWidget);
+      expect(find.byKey(const Key('role_card_other')), findsNothing);
+      expect(find.text('Other'), findsNothing);
+
+      // Selecting "I want to do this" on Emcee also selects "Qualified" on Emcee
+      final emceeWantedChip = find.byKey(const Key('role_wanted_emcee'));
+      await tester.ensureVisible(emceeWantedChip);
+      await tester.tap(emceeWantedChip);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<FilterChip>(find.byKey(const Key('role_qualified_emcee'))).selected,
+        isTrue,
+      );
+      expect(
+        tester.widget<FilterChip>(emceeWantedChip).selected,
+        isTrue,
+      );
+
+      // Deselecting "Qualified" on ref also deselects "I want to do this" on ref
+      final refQualifiedChip = find.byKey(const Key('role_qualified_ref'));
+      await tester.ensureVisible(refQualifiedChip);
+      await tester.tap(refQualifiedChip);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<FilterChip>(refQualifiedChip).selected,
+        isFalse,
+      );
+      expect(
+        tester.widget<FilterChip>(find.byKey(const Key('role_wanted_ref'))).selected,
+        isFalse,
+      );
+
+      // Save profile and verify stored Firestore document
+      final saveBtn = find.widgetWithText(ElevatedButton, 'Save Profile & Settings');
+      await tester.ensureVisible(saveBtn);
+      await tester.tap(saveBtn);
+      await tester.pumpAndSettle();
+
+      final savedDoc = authBackend.getStoredPublicDoc('vol-profile-1')!;
+      expect(
+        (savedDoc['qualifications'] as List).toSet(),
+        equals({'head_ref', 'emcee'}),
+      );
+      expect(
+        (savedDoc['preferredRoles'] as List).toSet(),
+        equals({'emcee'}),
+      );
+    });
+
+    testWidgets(
+        'EventSignupDialog shows only qualified roles (+ Other) and pre-selects only "I want to do this" roles',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const session = AuthSession(
+        uid: 'vol-event-1',
+        email: 'casey@example.org',
+      );
+      const profile = VolunteerModel(
+        id: 'vol-event-1',
+        name: 'Casey Official',
+        email: 'casey@example.org',
+        qualifications: ['head_ref', 'ref', 'emcee', 'queuer'],
+        preferredRoles: ['emcee'],
+        forwardingAddress: 'vol-casey000@volunteer.roboref.app',
+      );
+
+      final authBackend = InMemoryAuthBackend(
+        initialSession: session,
+        initialProfile: profile,
+      );
+      addTearDown(authBackend.dispose);
+
+      final signupStore = InMemorySignupStore();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authBackendProvider.overrideWithValue(authBackend),
+            otpAuthApiClientProvider.overrideWithValue(
+              OtpAuthApiClient(
+                httpClient: MockClient((_) async => http.Response('Offline', 503)),
+              ),
+            ),
+            signupStoreProvider.overrideWithValue(signupStore),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: EventSignupDialog(
+                sku: 'RE-V5RC-26-9102',
+                eventName: 'UK VEX National Championship',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guide link appears inside the signup dialog
+      expect(
+        find.text('For details on what each role does click here', findRichText: true),
+        findsOneWidget,
+      );
+
+      // Qualified roles (+ Other) are shown as options
+      expect(find.byKey(const Key('event_signup_role_head_ref')), findsOneWidget);
+      expect(find.byKey(const Key('event_signup_role_ref')), findsOneWidget);
+      expect(find.byKey(const Key('event_signup_role_emcee')), findsOneWidget);
+      expect(find.byKey(const Key('event_signup_role_queuer')), findsOneWidget);
+      expect(find.byKey(const Key('event_signup_role_other')), findsOneWidget);
+
+      // Unqualified roles are NOT shown
+      expect(find.byKey(const Key('event_signup_role_judge')), findsNothing);
+      expect(find.byKey(const Key('event_signup_role_tm_operator')), findsNothing);
+      expect(find.byKey(const Key('event_signup_role_robot_inspector')), findsNothing);
+
+      // ONLY "I want to do this" role (emcee) is pre-selected
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_emcee')))
+            .value,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_head_ref')))
+            .value,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_ref')))
+            .value,
+        isFalse,
+      );
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byKey(const Key('event_signup_role_queuer')))
+            .value,
+        isFalse,
+      );
+
+      // Submitting saves the pre-selected Emcee role cleanly
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Sign Up as Volunteer'));
+      await tester.pumpAndSettle();
+
+      final saved = await signupStore.getUserSignupForEvent(
+        cleanSku: 'RE-V5RC-26-9102',
+        volunteerId: 'vol-event-1',
+      );
+      expect(saved, isNotNull);
+      expect(saved!.offeredRoles, equals(['emcee']));
+    });
+
+    testWidgets(
+        'SignupScreen onboarding saves both Qualified and "I want to do this" preferences',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 2200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      const session = AuthSession(
+        uid: 'vol-onboard-1',
+        email: 'newvol@example.org',
+      );
+      final authBackend = InMemoryAuthBackend(initialSession: session);
+      addTearDown(authBackend.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authBackendProvider.overrideWithValue(authBackend),
+            otpAuthApiClientProvider.overrideWithValue(
+              OtpAuthApiClient(
+                httpClient: MockClient((_) async => http.Response('Offline', 503)),
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: SignupScreen(
+              verifiedEmail: 'newvol@example.org',
+              initialName: 'Taylor Queue',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Add Queuer as Qualified only, and Emcee as both Qualified + I want to do this
+      final queuerQualified = find.byKey(const Key('role_qualified_queuer'));
+      await tester.ensureVisible(queuerQualified);
+      await tester.tap(queuerQualified);
+      await tester.pumpAndSettle();
+
+      final emceeWanted = find.byKey(const Key('role_wanted_emcee'));
+      await tester.ensureVisible(emceeWanted);
+      await tester.tap(emceeWanted);
+      await tester.pumpAndSettle();
+
+      // Uncheck "I want to do this" on head_ref (remains Qualified)
+      final headRefWanted = find.byKey(const Key('role_wanted_head_ref'));
+      await tester.ensureVisible(headRefWanted);
+      await tester.tap(headRefWanted);
+      await tester.pumpAndSettle();
+
+      final submitBtn = find.byKey(const Key('complete_onboarding_button'));
+      await tester.ensureVisible(submitBtn);
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      final savedDoc = authBackend.getStoredPublicDoc('vol-onboard-1')!;
+      expect(
+        (savedDoc['qualifications'] as List).toSet(),
+        equals({'head_ref', 'ref', 'queuer', 'emcee'}),
+      );
+      expect(
+        (savedDoc['preferredRoles'] as List).toSet(),
+        equals({'ref', 'emcee'}),
+      );
+    });
+  });
+}

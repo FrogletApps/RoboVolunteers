@@ -22,8 +22,13 @@ rules_version = '2';
 // Fields:
 //   - id: string (required, immutable, == uid, 1..128 chars)
 //   - name: string (required, 1..100 chars) - display name
-//   - qualifications: list<string> (required, 1..10 items, allowed values:
-//       ['head_ref', 'ref', 'judge_advisor', 'judge', 'other'])
+//   - qualifications: list<string> (required, 1..12 items, allowed values:
+//       ['head_ref', 'ref', 'robot_inspector', 'judge_advisor', 'judge',
+//        'tm_operator', 'emcee', 'field_resetter', 'queuer', 'pit_admin',
+//        'hospitality', 'other'])
+//   - preferredRoles: list<string> (optional, 0..12 items, subset of
+//       qualifications & official VEX role IDs) - pre-selected event role
+//       preferences ("I want to do this")
 //   - forwardingAddress: string (required, 10..100 chars) - relay alias
 //   - isEmailPublic: bool (required, locked == false in v1)
 //   - isPhonePublic: bool (required, locked == false in v1)
@@ -48,8 +53,10 @@ rules_version = '2';
 //   - volunteerName: string (required, 1..100 chars) - denormalized display name
 //   - status: string (required, in ['available', 'confirmed'])
 //   - epVerified: bool (required, locked == false in v1)
-//   - offeredRoles: list<string> (required, 1..10 items, allowed values:
-//       ['head_ref', 'ref', 'judge_advisor', 'judge', 'other'])
+//   - offeredRoles: list<string> (required, 1..12 items, allowed values:
+//       ['head_ref', 'ref', 'robot_inspector', 'judge_advisor', 'judge',
+//        'tm_operator', 'emcee', 'field_resetter', 'queuer', 'pit_admin',
+//        'hospitality', 'other'])
 //   - otherRoleDescription: string | null (optional, if string <= 120 chars)
 //   - notes: string | null (optional, if string <= 500 chars)
 //   - updatedAt: timestamp (required)
@@ -128,12 +135,44 @@ service cloud.firestore {
       return val is bool && val == false;
     }
 
+    // Official VEX volunteer role IDs (12 roles)
+    function officialVexRoles() {
+      return [
+        'head_ref',
+        'ref',
+        'robot_inspector',
+        'judge_advisor',
+        'judge',
+        'tm_operator',
+        'emcee',
+        'field_resetter',
+        'queuer',
+        'pit_admin',
+        'hospitality',
+        'other'
+      ];
+    }
+
     // Validate non-empty bounded role list against official VEX volunteer roles
     function isValidRoleList(roles) {
       return roles is list &&
              roles.size() >= 1 &&
-             roles.size() <= 10 &&
-             roles.hasOnly(['head_ref', 'ref', 'judge_advisor', 'judge', 'other']);
+             roles.size() <= 12 &&
+             roles.hasOnly(officialVexRoles());
+    }
+
+    // Validate optional preferredRoles field on volunteers/{uid}:
+    // Omitted for backward compatibility, or a list of 0..12 official role IDs
+    // that is strictly a subset of data.qualifications.
+    function isValidOptionalPreferredRoles(data) {
+      return !('preferredRoles' in data) ||
+             (data.preferredRoles is list &&
+              data.preferredRoles.size() >= 0 &&
+              data.preferredRoles.size() <= 12 &&
+              (data.preferredRoles.size() == 0 ||
+               (data.preferredRoles.hasOnly(officialVexRoles()) &&
+                data.qualifications is list &&
+                data.qualifications.hasAll(data.preferredRoles))));
     }
 
     // ===============================================================
@@ -146,6 +185,7 @@ service cloud.firestore {
         'id',
         'name',
         'qualifications',
+        'preferredRoles',
         'forwardingAddress',
         'isEmailPublic',
         'isPhonePublic',
@@ -172,6 +212,7 @@ service cloud.firestore {
              data.id == uid &&
              isValidString(data.name, 1, 100) &&
              isValidRoleList(data.qualifications) &&
+             isValidOptionalPreferredRoles(data) &&
              isValidString(data.forwardingAddress, 10, 100) &&
              isLockedFalse(data.isEmailPublic) &&
              isLockedFalse(data.isPhonePublic) &&
