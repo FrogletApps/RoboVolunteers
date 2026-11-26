@@ -15,5 +15,22 @@
       "pattern": "robovolunteers.link",
       "custom_domain": true
     }
-  ]
+  ],
+  "env": {
+    "test": {
+      "name": "robovolunteers-test",
+      "workers_dev": true,
+      "preview_urls": true,
+      "assets": {
+        "directory": "./app/build/web",
+        "not_found_handling": "single-page-application"
+      },
+      "routes": [
+        {
+          "pattern": "test.robovolunteers.link",
+          "custom_domain": true
+        }
+      ]
+    }
+  }
 }

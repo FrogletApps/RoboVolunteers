@@ -29,5 +29,35 @@
     "MAX_OTP_ATTEMPTS": "5",
     "REQUIRE_TURNSTILE": "false",
     "ALLOWED_ORIGINS": "https://robovolunteers.link,https://*.robovolunteers.link,https://volunteer.roboref.app,https://roboref.app,https://*.roboref.app,https://roboref-volunteer-hub.james-pearson.workers.dev,https://*.james-pearson.workers.dev,https://volunteer-wrangler.web.app,https://volunteer-wrangler.firebaseapp.com,http://localhost:5000,http://localhost:8080"
+  },
+  "env": {
+    "test": {
+      "name": "robovolunteers-auth-otp-test",
+      "send_email": [
+        {
+          "name": "EMAIL"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "AUTH_OTP_KV",
+          "id": "REPLACE_WITH_TEST_AUTH_OTP_KV_NAMESPACE_ID"
+        }
+      ],
+      "vars": {
+        "PUBLIC_APP_URL": "https://test.robovolunteers.link",
+        "SENDER_EMAIL": "noreply@roboref.app",
+        "SENDER_NAME": "RoboVolunteers (Test)",
+        "MAX_DAILY_EMAILS_PER_USER": "12",
+        "MAX_HOURLY_EMAILS_PER_IP": "20",
+        "MAX_MINUTE_EMAILS_PER_IP": "5",
+        "MAX_DAILY_EMAILS_GLOBAL": "150",
+        "OTP_COOLDOWN_SECONDS": "60",
+        "OTP_TTL_SECONDS": "600",
+        "MAX_OTP_ATTEMPTS": "5",
+        "REQUIRE_TURNSTILE": "false",
+        "ALLOWED_ORIGINS": "https://test.robovolunteers.link,https://*.robovolunteers.link,https://robovolunteers-test.james-pearson.workers.dev,https://*.james-pearson.workers.dev,https://robovolunteers-test.web.app,https://robovolunteers-test.firebaseapp.com,http://localhost:5000,http://localhost:8080"
+      }
+    }
   }
 }

@@ -3,16 +3,22 @@
   Builds RoboVolunteers Flutter app and/or Auth OTP Cloudflare Worker with automatic date-based version (YYYY.M.D) and Git commit count build number.
 .PARAMETER Target
   The build target (e.g. web, worker, server, apk, appbundle, windows, ipa, all). Default: web.
+.PARAMETER Env
+  Target deployment environment: live (default) or test.
 .PARAMETER ExtraArgs
   Additional arguments passed to flutter build.
 .EXAMPLE
   .\scripts\build.ps1 web
+  .\scripts\build.ps1 web -Env live
+  .\scripts\build.ps1 web -Env test
   .\scripts\build.ps1 worker
   .\scripts\build.ps1 all
   .\scripts\build.ps1 apk
 #>
 param (
     [string]$Target = "web",
+    [ValidateSet("live", "test")]
+    [string]$Env = "live",
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$ExtraArgs
 )
@@ -31,7 +37,7 @@ try {
 }
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Building RoboVolunteers ($Target)" -ForegroundColor Cyan
+Write-Host " Building RoboVolunteers ($Target) [$Env]" -ForegroundColor Cyan
 Write-Host " Version Name: $versionName" -ForegroundColor Yellow
 Write-Host " Build Number: $buildNumber" -ForegroundColor Yellow
 Write-Host " Full Version: $versionName+$buildNumber" -ForegroundColor Yellow
@@ -89,19 +95,33 @@ function Build-Flutter([string]$flutterTarget) {
         }
 
         if (-not $hasFirebaseDefine) {
-            $appEnvFile = Join-Path $appDir "firebase.env.json"
-            $rootEnvFile = Join-Path $PSScriptRoot "..\firebase.env.json"
-            if (Test-Path $appEnvFile) {
-                Write-Host "Using Firebase config from app/firebase.env.json" -ForegroundColor Gray
-                $buildArgs += "--dart-define-from-file=$appEnvFile"
-            } elseif (Test-Path $rootEnvFile) {
-                Write-Host "Using Firebase config from firebase.env.json" -ForegroundColor Gray
-                $buildArgs += "--dart-define-from-file=$rootEnvFile"
-            } elseif (-not [string]::IsNullOrWhiteSpace($env:FIREBASE_API_KEY)) {
-                Write-Host "Using FIREBASE_API_KEY from environment" -ForegroundColor Gray
-                $buildArgs += "--dart-define=FIREBASE_API_KEY=$($env:FIREBASE_API_KEY)"
+            if ($Env -eq "test") {
+                $appEnvFile = Join-Path $appDir "firebase.test.env.json"
+                $rootEnvFile = Join-Path $PSScriptRoot "..\firebase.test.env.json"
+                if (Test-Path $appEnvFile) {
+                    Write-Host "Using test Firebase config from app/firebase.test.env.json" -ForegroundColor Gray
+                    $buildArgs += "--dart-define-from-file=$appEnvFile"
+                } elseif (Test-Path $rootEnvFile) {
+                    Write-Host "Using test Firebase config from firebase.test.env.json" -ForegroundColor Gray
+                    $buildArgs += "--dart-define-from-file=$rootEnvFile"
+                } else {
+                    throw "Missing test Firebase config. Copy app/firebase.test.env.example.json to app/firebase.test.env.json and fill in your RoboVolunteers-Test Firebase project values."
+                }
             } else {
-                throw "Missing Firebase API key. Copy app/firebase.env.example.json to app/firebase.env.json and set FIREBASE_API_KEY, or set the FIREBASE_API_KEY environment variable."
+                $appEnvFile = Join-Path $appDir "firebase.env.json"
+                $rootEnvFile = Join-Path $PSScriptRoot "..\firebase.env.json"
+                if (Test-Path $appEnvFile) {
+                    Write-Host "Using Firebase config from app/firebase.env.json" -ForegroundColor Gray
+                    $buildArgs += "--dart-define-from-file=$appEnvFile"
+                } elseif (Test-Path $rootEnvFile) {
+                    Write-Host "Using Firebase config from firebase.env.json" -ForegroundColor Gray
+                    $buildArgs += "--dart-define-from-file=$rootEnvFile"
+                } elseif (-not [string]::IsNullOrWhiteSpace($env:FIREBASE_API_KEY)) {
+                    Write-Host "Using FIREBASE_API_KEY from environment" -ForegroundColor Gray
+                    $buildArgs += "--dart-define=FIREBASE_API_KEY=$($env:FIREBASE_API_KEY)"
+                } else {
+                    throw "Missing Firebase API key. Copy app/firebase.env.example.json to app/firebase.env.json and set FIREBASE_API_KEY, or set the FIREBASE_API_KEY environment variable."
+                }
             }
         }
 

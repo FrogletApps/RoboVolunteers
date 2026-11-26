@@ -48,3 +48,26 @@ Standalone Cloudflare Worker (`workers/auth-otp/`) providing:
    npm test
    npx wrangler deploy
    ```
+
+## Test Environment Deployment (`robovolunteers-auth-otp-test`)
+
+1. **Create a separate Test KV Namespace**:
+   ```bash
+   cd workers/auth-otp
+   npx wrangler kv namespace create AUTH_OTP_KV --env test
+   ```
+   Paste the returned namespace `id` into `env.test.kv_namespaces[0].id` in `wrangler.jsonc`.
+
+2. **Configure Test Worker Secrets & Admin Emails** (using the `RoboVolunteers-Test` Firebase service account):
+   ```bash
+   npx wrangler secret put INVITE_CODES --env test
+   npx wrangler secret put OTP_HMAC_SECRET --env test
+   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT_JSON --env test
+   npx wrangler secret put TURNSTILE_SECRET_KEY --env test
+   npx wrangler secret put ADMIN_EMAILS --env test   # Or set as a plaintext var in the Cloudflare Dashboard
+   ```
+
+3. **Deploy Test Worker**:
+   ```bash
+   npm run deploy:test
+   ```

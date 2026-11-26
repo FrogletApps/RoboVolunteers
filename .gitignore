@@ -2,6 +2,7 @@
 .wrangler/
 .dev.vars
 firebase.env.json
+firebase.test.env.json
 node_modules/
 
 # Firebase CLI cache & debug logs

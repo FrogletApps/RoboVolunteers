@@ -100,6 +100,9 @@ Just like the main RoboRef repository, automated date-based versioning (`YYYY.M.
 # Deploy web app, Auth OTP Cloudflare Worker, and Firestore rules & indexes
 .\scripts\deploy.ps1 -DeployWorker
 
+# Deploy to the isolated test environment (test.robovolunteers.link, robovolunteers-test, robovolunteers-auth-otp-test, RoboVolunteers-Test Firebase)
+.\scripts\deploy.ps1 -Env test -DeployWorker
+
 # Skip deploying Firestore rules & indexes
 .\scripts\deploy.ps1 -SkipFirestore
 
@@ -109,15 +112,32 @@ Just like the main RoboRef repository, automated date-based versioning (`YYYY.M.
 
 Or using root `npm` shortcuts:
 ```bash
-npm run build          # Builds Flutter Web bundle
-npm run deploy         # Runs scripts/deploy.ps1
-npm run deploy:worker  # Deploys workers/auth-otp
-npm run test:worker    # Runs worker unit tests
+npm run build              # Builds Flutter Web bundle (live)
+npm run build:test         # Builds Flutter Web bundle (test)
+npm run deploy             # Runs scripts/deploy.ps1 (live)
+npm run deploy:test        # Runs scripts/deploy.ps1 -Env test
+npm run deploy:test:all    # Deploys test web app, test Auth OTP worker, and test Firestore rules
+npm run deploy:worker      # Deploys workers/auth-otp (live)
+npm run deploy:worker:test # Deploys workers/auth-otp (test)
+npm run test:worker        # Runs worker unit tests
 ```
 
+#### Test / Staging Environment Setup (`RoboVolunteers-Test`)
+An isolated `test` environment is configured across Firebase (`.firebaserc` alias `test` → `robovolunteers-test`), Cloudflare Web Hosting (`wrangler.jsonc` → `robovolunteers-test` on `test.robovolunteers.link`), and the Auth OTP Worker (`workers/auth-otp/wrangler.jsonc` → `robovolunteers-auth-otp-test`):
+1. Create Firebase project `RoboVolunteers-Test` (ID `robovolunteers-test`, `europe-west2` Firestore), enable Google Sign-In, authorize `test.robovolunteers.link` and `robovolunteers-test.<subdomain>.workers.dev`, and deploy rules:
+   ```bash
+   npm run deploy:firestore:test
+   ```
+2. Create a separate Cloudflare KV namespace for the test Auth OTP worker (`cd workers/auth-otp && npx wrangler kv namespace create AUTH_OTP_KV --env test`), paste its ID into `env.test.kv_namespaces[0].id` in `workers/auth-otp/wrangler.jsonc`, and set test secrets (`FIREBASE_SERVICE_ACCOUNT_JSON` from `RoboVolunteers-Test`, `OTP_HMAC_SECRET`, `ADMIN_EMAILS`, etc.) using `npx wrangler secret put <NAME> --env test`.
+3. Copy `app/firebase.test.env.example.json` to `app/firebase.test.env.json` (gitignored) and fill in your `RoboVolunteers-Test` web app config.
+4. Build and deploy everything to test:
+   ```bash
+   npm run deploy:test:all
+   ```
+
 #### Authorizing Domains in Firebase Auth
-Make sure to authorize your Cloudflare domain(s) (e.g. `robovolunteers.link`, `test.robovolunteers.link`, and `roboref-volunteer-hub.<subdomain>.workers.dev`) under **Firebase Console → Authentication → Settings → Authorized domains** so Google Sign-In popups work.
-`robovolunteers.link` is attached as a Cloudflare custom domain via `"routes"` in `wrangler.jsonc`.
+Make sure to authorize your Cloudflare domain(s) (e.g. `robovolunteers.link`, `test.robovolunteers.link`, `roboref-volunteer-hub.<subdomain>.workers.dev`, and `robovolunteers-test.<subdomain>.workers.dev`) under **Firebase Console → Authentication → Settings → Authorized domains** so Google Sign-In popups work.
+`robovolunteers.link` (live) and `test.robovolunteers.link` (test) are attached as Cloudflare custom domains via `"routes"` in `wrangler.jsonc`.
 
 ---
 

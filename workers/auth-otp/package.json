@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:test": "wrangler dev --env test",
     "deploy": "wrangler deploy",
+    "deploy:test": "wrangler deploy --env test",
     "test": "node --test test/worker.test.ts",
     "typecheck": "tsc --noEmit"
   },

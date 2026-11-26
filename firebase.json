@@ -13,7 +13,10 @@
           "https://test.robovolunteers.link/__/auth/handler",
           "https://volunteer-wrangler.firebaseapp.com/__/auth/handler",
           "https://volunteer-wrangler.web.app/__/auth/handler",
+          "https://robovolunteers-test.firebaseapp.com/__/auth/handler",
+          "https://robovolunteers-test.web.app/__/auth/handler",
           "https://roboref-volunteer-hub.james-pearson.workers.dev/__/auth/handler",
+          "https://robovolunteers-test.james-pearson.workers.dev/__/auth/handler",
           "https://volunteer.roboref.app/__/auth/handler",
           "http://localhost"
         ]
