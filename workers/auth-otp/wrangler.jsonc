@@ -41,7 +41,7 @@
       "kv_namespaces": [
         {
           "binding": "AUTH_OTP_KV",
-          "id": "REPLACE_WITH_TEST_AUTH_OTP_KV_NAMESPACE_ID"
+          "id": "7674cbbe2e604aabb49f33001a4f7956"
         }
       ],
       "vars": {
