@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/roles.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../admin/screens/admin_portal_screen.dart';
 import '../../auth_invites/state/auth_provider.dart';
 import '../models/volunteer_model.dart';
 import '../widgets/role_preferences_selector.dart';
@@ -115,6 +115,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             icon: const Icon(Icons.logout),
             tooltip: 'Log Out',
             onPressed: () async {
+              final navigator = Navigator.of(context);
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
@@ -136,8 +137,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
               if (confirm == true) {
                 await ref.read(authControllerProvider.notifier).logout();
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                if (navigator.mounted) {
+                  navigator.popUntil((route) => route.isFirst);
                 }
               }
             },
@@ -256,11 +257,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const AdminPortalScreen(),
-                          ),
-                        );
+                        AppRouter.push(context, AppRoutes.admin);
                       },
                     ),
                   ),

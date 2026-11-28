@@ -3,16 +3,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
+import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
-import 'core/utils/invite_link_utils.dart';
-import 'features/auth_invites/screens/login_screen.dart';
-import 'features/auth_invites/screens/signup_screen.dart';
-import 'features/auth_invites/state/auth_provider.dart';
-import 'features/events/screens/events_list_screen.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  usePathUrlStrategy();
 
   var firebaseInitialized = false;
   if (DefaultFirebaseOptions.isConfigured) {
@@ -35,17 +33,13 @@ Future<void> main() async {
 
 class RoboVolunteersApp extends ConsumerWidget {
   final bool firebaseReady;
+  final String? initialRoute;
 
   const RoboVolunteersApp({
     super.key,
     this.firebaseReady = true,
+    this.initialRoute,
   });
-
-  Widget _buildRootScreen({String? initialInviteCode}) {
-    return firebaseReady
-        ? _AuthGateRouter(initialInviteCode: initialInviteCode)
-        : const _FirebaseSetupRequiredScreen();
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -55,95 +49,19 @@ class RoboVolunteersApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: _buildRootScreen(),
-      onGenerateRoute: (settings) {
-        final inviteCode = settings.name != null
-            ? InviteLinkUtils.extractInitialInviteCode(
-                defaultRouteName: settings.name,
-              )
-            : null;
-        return MaterialPageRoute<void>(
-          settings: settings,
-          builder: (_) => _buildRootScreen(initialInviteCode: inviteCode),
-        );
-      },
-      onUnknownRoute: (settings) {
-        return MaterialPageRoute<void>(
-          settings: settings,
-          builder: (_) => _buildRootScreen(),
-        );
-      },
-    );
-  }
-}
-
-class _AuthGateRouter extends ConsumerWidget {
-  final String? initialInviteCode;
-
-  const _AuthGateRouter({this.initialInviteCode});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final gate = ref.watch(authControllerProvider);
-
-    switch (gate.status) {
-      case AuthGateStatus.loading:
-        return const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      case AuthGateStatus.unauthenticated:
-        return LoginScreen(initialInviteCode: initialInviteCode);
-      case AuthGateStatus.needsOnboarding:
-        return SignupScreen(
-          verifiedEmail: gate.session?.email ?? '',
-          initialName: gate.session?.displayName,
-        );
-      case AuthGateStatus.authenticated:
-        return const EventsListScreen();
-    }
-  }
-}
-
-class _FirebaseSetupRequiredScreen extends StatelessWidget {
-  const _FirebaseSetupRequiredScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: const Padding(
-            padding: EdgeInsets.all(24),
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.cloud_off, size: 48, color: Colors.orange),
-                    SizedBox(height: 16),
-                    Text(
-                      'Firebase Configuration Required',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Run `flutterfire configure` in `app/` or pass FIREBASE_API_KEY, FIREBASE_PROJECT_ID, and FIREBASE_APP_ID via `--dart-define`.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      initialRoute: initialRoute,
+      onGenerateRoute: (settings) => AppRouter.onGenerateRoute(
+        settings,
+        firebaseReady: firebaseReady,
+      ),
+      onGenerateInitialRoutes: (initialRouteName) =>
+          AppRouter.onGenerateInitialRoutes(
+        initialRouteName,
+        firebaseReady: firebaseReady,
+      ),
+      onUnknownRoute: (settings) => AppRouter.routeForPath(
+        AppRoutes.home,
+        firebaseReady: firebaseReady,
       ),
     );
   }

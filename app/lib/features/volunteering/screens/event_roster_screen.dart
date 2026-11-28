@@ -1,20 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/roles.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/sku_utils.dart';
 import '../../../core/utils/url_utils.dart';
 import '../../../core/widgets/role_details_link.dart';
 import '../../events/models/event_model.dart';
+import '../../events/state/events_provider.dart';
 import '../../auth_invites/state/auth_provider.dart';
 import '../models/signup_model.dart';
 import '../state/volunteering_provider.dart';
 import '../widgets/event_signup_dialog.dart';
 
 class EventRosterScreen extends ConsumerStatefulWidget {
-  final EventModel event;
+  final EventModel? event;
+  final String? sku;
 
-  const EventRosterScreen({super.key, required this.event});
+  const EventRosterScreen({
+    super.key,
+    this.event,
+    this.sku,
+  }) : assert(
+          event != null || (sku != null && sku != ''),
+          'Either event or a non-empty sku must be provided.',
+        );
+
+  String get resolvedSku => (event?.sku ?? sku ?? '').trim().toUpperCase();
 
   @override
   ConsumerState<EventRosterScreen> createState() => _EventRosterScreenState();
@@ -24,22 +36,22 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
   String _selectedFilter = 'All'; // 'All', 'Confirmed', 'Available', or roleId
   String? _selectedRoleFilter;
 
-  void _openSignupDialog([EventSignupModel? existingSignup]) {
+  void _openSignupDialog(EventModel event, [EventSignupModel? existingSignup]) {
     showDialog(
       context: context,
       builder: (_) => EventSignupDialog(
-        sku: widget.event.sku,
-        eventName: widget.event.name,
+        sku: event.sku,
+        eventName: event.name,
         existingSignup: existingSignup,
       ),
     );
   }
 
-  void _showRelayMessageDialog(EventSignupModel signup) {
+  void _showRelayMessageDialog(EventModel event, EventSignupModel signup) {
     final relayAddress = signup.volunteer?.forwardingAddress ??
         'vol-${signup.volunteerId.substring(0, 8)}@volunteer.roboref.app';
     final subjectController =
-        TextEditingController(text: 'VEX Tournament Inquiry - ${widget.event.name}');
+        TextEditingController(text: 'VEX Tournament Inquiry - ${event.name}');
     final bodyController = TextEditingController();
 
     showDialog(
@@ -120,12 +132,97 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final signupsAsync = ref.watch(eventSignupsProvider(widget.event.sku));
-    final userSignupAsync = ref.watch(userEventSignupProvider(widget.event.sku));
+    final providedEvent = widget.event;
+    if (providedEvent != null) {
+      return _buildRosterScaffold(context, providedEvent);
+    }
+
+    final resolvedSku = widget.resolvedSku;
+    final eventAsync = ref.watch(eventBySkuProvider(resolvedSku));
+
+    return eventAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Volunteer Roster')),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        appBar: AppBar(title: const Text('Volunteer Roster')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 12),
+                Text(
+                  'Error loading event $resolvedSku: $err',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () =>
+                      ref.invalidate(eventBySkuProvider(resolvedSku)),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (event) {
+        if (event == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Volunteer Roster')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.event_busy, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Event not found',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'No VEX event was found for SKU $resolvedSku.',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          AppRouter.pushReplacement(context, AppRoutes.home);
+                        }
+                      },
+                      child: const Text('Back to Events'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        return _buildRosterScaffold(context, event);
+      },
+    );
+  }
+
+  Widget _buildRosterScaffold(BuildContext context, EventModel event) {
+    final signupsAsync = ref.watch(eventSignupsProvider(event.sku));
+    final userSignupAsync = ref.watch(userEventSignupProvider(event.sku));
     final currentUser =
         ref.watch(currentVolunteerProvider)?.withDisabledPrivacyAndEpSettings();
     final isEp = currentUser?.isEventPartner ?? false;
-    final progColor = getProgramColor(widget.event.program);
+    final progColor = getProgramColor(event.program);
 
     return Scaffold(
       appBar: AppBar(
@@ -134,7 +231,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
           IconButton(
             icon: const Icon(Icons.open_in_new),
             tooltip: 'View on VEX Events (events.vex.com)',
-            onPressed: () => UrlUtils.openVexEventsPage(widget.event.sku),
+            onPressed: () => UrlUtils.openVexEventsPage(event.sku),
           ),
         ],
       ),
@@ -188,7 +285,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              widget.event.program,
+                              event.program,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -198,7 +295,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            widget.event.sku,
+                            event.sku,
                             style: TextStyle(
                               fontSize: 12,
                               fontFamily: 'monospace',
@@ -209,7 +306,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                           const Spacer(),
                           // Official VEX Events link button
                           OutlinedButton.icon(
-                            onPressed: () => UrlUtils.openVexEventsPage(widget.event.sku),
+                            onPressed: () => UrlUtils.openVexEventsPage(event.sku),
                             icon: const Icon(Icons.launch, size: 14),
                             label: const Text('VEX Events Page', style: TextStyle(fontSize: 12)),
                             style: OutlinedButton.styleFrom(
@@ -221,7 +318,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        widget.event.name,
+                        event.name,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
@@ -230,7 +327,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                           Icon(Icons.calendar_month_outlined, size: 14, color: Colors.grey[600]),
                           const SizedBox(width: 6),
                           Text(
-                            widget.event.startDate,
+                            event.startDate,
                             style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                           ),
                           const SizedBox(width: 16),
@@ -238,7 +335,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              [widget.event.venue, widget.event.city].whereType<String>().join(', '),
+                              [event.venue, event.city].whereType<String>().join(', '),
                               style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -295,7 +392,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                                   ),
                                 ),
                                 ElevatedButton(
-                                  onPressed: () => _openSignupDialog(),
+                                  onPressed: () => _openSignupDialog(event),
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   ),
@@ -353,7 +450,7 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                                     ],
                                     const Spacer(),
                                     TextButton.icon(
-                                      onPressed: () => _openSignupDialog(userSignup),
+                                      onPressed: () => _openSignupDialog(event, userSignup),
                                       icon: const Icon(Icons.edit, size: 14),
                                       label: const Text('Edit', style: TextStyle(fontSize: 12)),
                                       style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
@@ -519,12 +616,12 @@ class _EventRosterScreenState extends ConsumerState<EventRosterScreen> {
                         return _VolunteerCard(
                           signup: item,
                           isEpViewer: isEp,
-                          onContactRelay: () => _showRelayMessageDialog(item),
+                          onContactRelay: () => _showRelayMessageDialog(event, item),
                           onToggleEpVerification: () async {
                             final repo = ref.read(volunteerRepositoryProvider);
                             await repo.toggleEpVerification(signupId: item.id);
-                            ref.invalidate(eventSignupsProvider(widget.event.sku));
-                            ref.invalidate(userEventSignupProvider(widget.event.sku));
+                            ref.invalidate(eventSignupsProvider(event.sku));
+                            ref.invalidate(userEventSignupProvider(event.sku));
                             ref.invalidate(myVolunteerSignupsProvider);
                           },
                         );

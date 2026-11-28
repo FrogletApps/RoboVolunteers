@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/sku_utils.dart';
 import '../../../core/utils/url_utils.dart';
 import '../models/event_model.dart';
 import '../state/events_provider.dart';
 import '../../volunteering/state/volunteering_provider.dart';
-import '../../volunteering/screens/event_roster_screen.dart';
-import '../../profile/screens/profile_screen.dart';
-import '../../admin/screens/admin_portal_screen.dart';
 import '../../auth_invites/state/auth_provider.dart';
 
 class EventsListScreen extends ConsumerStatefulWidget {
@@ -181,9 +179,7 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
               icon: const Icon(Icons.admin_panel_settings_outlined),
               tooltip: 'Admin Portal',
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AdminPortalScreen()),
-                );
+                AppRouter.push(context, AppRoutes.admin);
               },
             ),
           IconButton(
@@ -191,9 +187,7 @@ class _EventsListScreenState extends ConsumerState<EventsListScreen> {
             icon: const Icon(Icons.person_outline),
             tooltip: 'My Volunteer Profile',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ProfileScreen()),
-              );
+              AppRouter.push(context, AppRoutes.profile);
             },
           ),
           IconButton(
@@ -488,11 +482,7 @@ class _EventCard extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => EventRosterScreen(event: event),
-            ),
-          );
+          AppRouter.pushEvent(context, event);
         },
         child: Padding(
           padding: const EdgeInsets.all(14),

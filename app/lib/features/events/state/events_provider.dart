@@ -101,3 +101,29 @@ final ukEventsListProvider = FutureProvider<List<EventModel>>((ref) async {
     query: cleanQuery,
   );
 });
+
+/// Resolves a single event by SKU (reusing already-loaded events when present,
+/// otherwise fetching directly by SKU for deep links and browser refreshes).
+final eventBySkuProvider =
+    FutureProvider.family<EventModel?, String>((ref, rawSku) async {
+  final normalizedSku = rawSku.trim().toUpperCase();
+  if (normalizedSku.isEmpty) return null;
+
+  final cachedEvents = ref.read(ukEventsListProvider).asData?.value;
+  if (cachedEvents != null) {
+    for (final event in cachedEvents) {
+      if (event.sku.trim().toUpperCase() == normalizedSku) {
+        return event;
+      }
+    }
+  }
+
+  final service = ref.watch(vexEventsServiceProvider);
+  final matches = await service.searchEventsBySkus(skus: {normalizedSku});
+  for (final event in matches) {
+    if (event.sku.trim().toUpperCase() == normalizedSku) {
+      return event;
+    }
+  }
+  return matches.isNotEmpty ? matches.first : null;
+});
